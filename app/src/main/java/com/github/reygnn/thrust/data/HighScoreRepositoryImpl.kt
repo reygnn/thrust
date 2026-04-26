@@ -6,37 +6,44 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.github.reygnn.thrust.domain.level.Levels
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 private val Context.thrustDataStore: DataStore<Preferences> by preferencesDataStore(name = "thrust_highscores")
 
-class HighScoreRepositoryImpl(private val context: Context) : HighScoreRepository {
+/**
+ * DataStore-backed Highscore-Repository.
+ *
+ * Keys werden dynamisch auf Basis von [totalLevels] erzeugt – pro Level genau ein Eintrag
+ * (`hs_level_$level`). Damit skaliert die Persistenz automatisch, wenn neue Level
+ * hinzukommen, ohne dass dieser Code angepasst werden muss.
+ */
+class HighScoreRepositoryImpl(
+    private val context: Context,
+    private val totalLevels: Int = Levels.totalLevels,
+) : HighScoreRepository {
 
-    private val KEY_1 = intPreferencesKey("hs_level_1")
-    private val KEY_2 = intPreferencesKey("hs_level_2")
-    private val KEY_3 = intPreferencesKey("hs_level_3")
+    init {
+        require(totalLevels > 0) { "totalLevels must be > 0, was $totalLevels" }
+    }
+
+    private val keys: Map<Int, Preferences.Key<Int>> =
+        (1..totalLevels).associateWith { intPreferencesKey("hs_level_$it") }
 
     override fun getHighScores(): Flow<Map<Int, Int>> =
         context.thrustDataStore.data.map { prefs ->
-            mapOf(
-                1 to (prefs[KEY_1] ?: 0),
-                2 to (prefs[KEY_2] ?: 0),
-                3 to (prefs[KEY_3] ?: 0),
-            )
+            keys.mapValues { (_, key) -> prefs[key] ?: 0 }
         }
 
     override suspend fun updateHighScore(level: Int, score: Int) {
+        val key = keys[level]
+            ?: throw IllegalArgumentException(
+                "Unknown level: $level (valid range: 1..$totalLevels)"
+            )
         context.thrustDataStore.edit { prefs ->
-            val key     = keyFor(level)
             val current = prefs[key] ?: 0
             if (score > current) prefs[key] = score
         }
-    }
-
-    private fun keyFor(level: Int) = when (level) {
-        1    -> KEY_1
-        2    -> KEY_2
-        else -> KEY_3
     }
 }

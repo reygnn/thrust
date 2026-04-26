@@ -22,6 +22,14 @@ import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 
+/**
+ * Hinweis zum Dispatcher:
+ * Alle [runTest]-Aufrufe übergeben explizit [MainDispatcherRule.dispatcher] –
+ * andernfalls würde runTest seinen eigenen StandardTestDispatcher mit eigenem
+ * Scheduler erzeugen, während die ViewModel-Coroutinen via Dispatchers.Main auf
+ * dem Scheduler der Rule laufen. [advanceTimeBy] würde dann den Loop nicht
+ * vorspulen. Siehe TESTING_CONVENTIONS.kt.
+ */
 class GameViewModelTest {
 
     @get:Rule val mainDispatcherRule = MainDispatcherRule()
@@ -46,7 +54,7 @@ class GameViewModelTest {
 
     // ── Initial state ─────────────────────────────────────────────────────────
 
-    @Test fun `initial state is level 1 Playing`() = runTest {
+    @Test fun `initial state is level 1 Playing`() = runTest(mainDispatcherRule.dispatcher) {
         stubRepo()
         val vm = buildVm()
 
@@ -59,7 +67,7 @@ class GameViewModelTest {
         }
     }
 
-    @Test fun `initial ship is at level 1 start position`() = runTest {
+    @Test fun `initial ship is at level 1 start position`() = runTest(mainDispatcherRule.dispatcher) {
         stubRepo()
         val vm = buildVm()
         val config = levelRepo.getLevel(1)
@@ -74,7 +82,7 @@ class GameViewModelTest {
 
     // ── Game loop advances state ──────────────────────────────────────────────
 
-    @Test fun `one frame advances frameCount to 1`() = runTest {
+    @Test fun `one frame advances frameCount to 1`() = runTest(mainDispatcherRule.dispatcher) {
         stubRepo()
         val vm = buildVm()
 
@@ -83,7 +91,7 @@ class GameViewModelTest {
         assertTrue("frameCount must be >= 1", vm.state.value.frameCount >= 1L)
     }
 
-    @Test fun `ten frames advance ship position downward (gravity)`() = runTest {
+    @Test fun `ten frames advance ship position downward (gravity)`() = runTest(mainDispatcherRule.dispatcher) {
         stubRepo()
         val vm = buildVm()
         val startY = vm.state.value.ship.position.y
@@ -95,7 +103,7 @@ class GameViewModelTest {
 
     // ── Input ─────────────────────────────────────────────────────────────────
 
-    @Test fun `thrust input moves ship upward when angle is 0`() = runTest {
+    @Test fun `thrust input moves ship upward when angle is 0`() = runTest(mainDispatcherRule.dispatcher) {
         stubRepo()
         val vm = buildVm()
         val startY = vm.state.value.ship.position.y
@@ -107,7 +115,7 @@ class GameViewModelTest {
         assertTrue("thrust lifts ship", vm.state.value.ship.position.y < startY)
     }
 
-    @Test fun `rotate-right changes ship angle positively`() = runTest {
+    @Test fun `rotate-right changes ship angle positively`() = runTest(mainDispatcherRule.dispatcher) {
         stubRepo()
         val vm = buildVm()
 
@@ -120,7 +128,7 @@ class GameViewModelTest {
 
     // ── Pause / Resume ───────────────────────────────────────────────────────
 
-    @Test fun `pauseGame sets phase to Paused`() = runTest {
+    @Test fun `pauseGame sets phase to Paused`() = runTest(mainDispatcherRule.dispatcher) {
         stubRepo()
         val vm = buildVm()
 
@@ -129,7 +137,7 @@ class GameViewModelTest {
         assertEquals(GamePhase.Paused, vm.state.value.phase)
     }
 
-    @Test fun `resumeGame sets phase back to Playing`() = runTest {
+    @Test fun `resumeGame sets phase back to Playing`() = runTest(mainDispatcherRule.dispatcher) {
         stubRepo()
         val vm = buildVm()
 
@@ -139,7 +147,7 @@ class GameViewModelTest {
         assertEquals(GamePhase.Playing, vm.state.value.phase)
     }
 
-    @Test fun `game loop does NOT advance frames while paused`() = runTest {
+    @Test fun `game loop does NOT advance frames while paused`() = runTest(mainDispatcherRule.dispatcher) {
         stubRepo()
         val vm = buildVm()
         advanceTimeBy(PhysicsConstants.FRAME_DELAY_MS + 1)
@@ -153,7 +161,7 @@ class GameViewModelTest {
 
     // ── startNewGame resets state ─────────────────────────────────────────────
 
-    @Test fun `startNewGame resets score and lives`() = runTest {
+    @Test fun `startNewGame resets score and lives`() = runTest(mainDispatcherRule.dispatcher) {
         stubRepo()
         val vm = buildVm()
 
@@ -168,7 +176,7 @@ class GameViewModelTest {
 
     // ── NavEvents ─────────────────────────────────────────────────────────────
 
-    @Test fun `onGameOverConfirm emits BackToMenu nav event`() = runTest {
+    @Test fun `onGameOverConfirm emits BackToMenu nav event`() = runTest(mainDispatcherRule.dispatcher) {
         stubRepo()
         val vm = buildVm()
 
@@ -179,7 +187,7 @@ class GameViewModelTest {
         }
     }
 
-    @Test fun `onLevelCompleteConfirm on last level emits BackToMenu`() = runTest {
+    @Test fun `onLevelCompleteConfirm on last level emits BackToMenu`() = runTest(mainDispatcherRule.dispatcher) {
         stubRepo()
         val level4Config = levelRepo.getLevel(4)
         val vm4 = GameViewModel(
@@ -199,13 +207,31 @@ class GameViewModelTest {
         }
     }
 
-    @Test fun `updateHighScore called when onGameOverConfirm`() = runTest {
-        stubRepo()
-        val vm = buildVm()
+    // ── Highscore-Persistierung ──────────────────────────────────────────────
 
-        vm.onGameOverConfirm()
-        advanceTimeBy(100)
+    @Test fun `onLevelCompleteConfirm persists high score for current level`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            stubRepo()
+            val vm = buildVm()
 
-        coVerify { highScoreRepo.updateHighScore(any(), any()) }
-    }
+            vm.onLevelCompleteConfirm()
+            advanceTimeBy(100)
+
+            // Beim Abschluss von Level 1 (currentLevel = 1) wird der Highscore gespeichert –
+            // unabhängig davon, ob es das letzte Level ist.
+            coVerify { highScoreRepo.updateHighScore(1, any()) }
+        }
+
+    @Test fun `onGameOverConfirm does NOT save high score (already saved in loop)`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            stubRepo()
+            val vm = buildVm()
+
+            // Zustand: noch keine GameOver-Phase erreicht (Loop hat nichts gespeichert).
+            // onGameOverConfirm() darf jetzt KEINEN Save mehr auslösen.
+            vm.onGameOverConfirm()
+            advanceTimeBy(100)
+
+            coVerify(exactly = 0) { highScoreRepo.updateHighScore(any(), any()) }
+        }
 }

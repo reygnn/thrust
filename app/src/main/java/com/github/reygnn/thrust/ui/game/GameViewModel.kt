@@ -83,13 +83,22 @@ class GameViewModel(
         }
     }
 
+    /**
+     * Wird aufgerufen, wenn der Spieler im LevelComplete-Dialog "Weiter" drückt.
+     *
+     * Persistiert den Highscore für das gerade abgeschlossene Level (egal ob es das
+     * letzte Level war) und startet entweder das nächste Level oder navigiert zurück
+     * ins Menü, falls das Spiel komplett durchgespielt wurde.
+     */
     fun advanceToNextLevel() {
         val current = _state.value
-        val nextId  = current.currentLevel + 1
+        // Highscore für das gerade abgeschlossene Level immer speichern.
+        viewModelScope.launch {
+            highScoreRepository.updateHighScore(current.currentLevel, current.score)
+        }
+
+        val nextId = current.currentLevel + 1
         if (nextId > levelRepository.totalLevels) {
-            viewModelScope.launch {
-                highScoreRepository.updateHighScore(current.currentLevel, current.score)
-            }
             _navEvents.tryEmit(NavEvent.BackToMenu)
         } else {
             _state.value = GameState.initial(
@@ -101,9 +110,13 @@ class GameViewModel(
         }
     }
 
+    /**
+     * Wird aufgerufen, wenn der Spieler im GameOver-Dialog bestätigt.
+     *
+     * Der Highscore wurde bereits beim Übergang in [GamePhase.GameOver] in der
+     * Game-Loop gespeichert – hier nur noch zurück ins Menü navigieren.
+     */
     fun onGameOverConfirmed() {
-        val s = _state.value
-        viewModelScope.launch { highScoreRepository.updateHighScore(s.currentLevel, s.score) }
         _navEvents.tryEmit(NavEvent.BackToMenu)
     }
 
@@ -153,6 +166,9 @@ class GameViewModel(
                 _state.value = next
 
                 if (next.phase != GamePhase.Playing) {
+                    // GameOver: Highscore eagerly persistieren – hier ist der Score final.
+                    // LevelComplete wird in advanceToNextLevel() gespeichert (erst beim
+                    // Weitergehen, da der Score während des nächsten Levels noch wachsen kann).
                     if (next.phase == GamePhase.GameOver) {
                         highScoreRepository.updateHighScore(next.currentLevel, next.score)
                     }
