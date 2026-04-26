@@ -62,15 +62,21 @@ class GameViewModel(
         startLoop()
     }
 
-    // ── Öffentliche API ───────────────────────────────────────────────────────
-
-    fun setInput(input: InputState) { _input.value = input }
+    // ── Input-API ─────────────────────────────────────────────────────────────
+    //
+    // Wichtig: Alle Input-Setter aktualisieren _input über `update { it.copy(...) }`,
+    // damit sie sich nicht gegenseitig überschreiben (z.B. Schub darf "shoot" nicht
+    // zurücksetzen). Es gibt bewusst KEIN setInput(InputState) mehr – das hatte in
+    // der UI dazu geführt, dass FIRE während gleichzeitiger Rotation/Schub-Eingabe
+    // stillschweigend deaktiviert wurde.
 
     fun onRotateLeft(pressed: Boolean)  { _input.update { it.copy(rotateLeft  = pressed) } }
     fun onRotateRight(pressed: Boolean) { _input.update { it.copy(rotateRight = pressed) } }
     fun onThrust(pressed: Boolean)      { _input.update { it.copy(thrust      = pressed) } }
     /** FIRE: schießt von der Raketenspitze in Blickrichtung. */
     fun onFire(pressed: Boolean)        { _input.update { it.copy(shoot       = pressed) } }
+
+    // ── Spielfluss ────────────────────────────────────────────────────────────
 
     fun togglePause() {
         val isPlaying = _state.value.phase == GamePhase.Playing

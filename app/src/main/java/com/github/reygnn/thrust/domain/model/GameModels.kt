@@ -36,9 +36,16 @@ data class TurretConfig(
     val bulletSpeed: Float = 4.5f,
 )
 
+/**
+ * Runtime state of a turret. The fire timing is derived directly from
+ * [GameState.frameCount] modulo [TurretConfig.firePeriodFrames] in
+ * [com.github.reygnn.thrust.domain.engine.PhysicsEngine.fireTurrets] – we
+ * don't keep a per-turret countdown. If you ever need staggered firing
+ * (multiple turrets with the same period firing on different frames),
+ * reintroduce a per-turret offset or cooldown counter here.
+ */
 data class Turret(
     val config: TurretConfig,
-    val cooldownFrames: Int = 0,
     val isDestroyed: Boolean = false,
 )
 
@@ -105,7 +112,7 @@ data class GameState(
         fun initial(config: LevelConfig, score: Int = 0, lives: Int = 3) = GameState(
             ship        = Ship(position = config.shipStart, angle = config.shipStartAngle),
             fuelPod     = FuelPod(position = config.fuelPodPosition),
-            turrets     = config.turrets.map { Turret(config = it, cooldownFrames = it.firePeriodFrames) },
+            turrets     = config.turrets.map { Turret(config = it) },
             score       = score,
             lives       = lives,
             currentLevel = config.id,

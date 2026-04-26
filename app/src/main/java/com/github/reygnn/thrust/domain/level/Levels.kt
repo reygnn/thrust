@@ -6,7 +6,18 @@ object Levels {
 
     val all: List<LevelConfig> by lazy { listOf(level1(), level2(), level3(), level4()) }
 
-    fun getById(id: Int): LevelConfig = all.first { it.id == id }
+    /**
+     * Liefert die [LevelConfig] mit der gegebenen ID.
+     *
+     * @throws IllegalArgumentException wenn keine Level mit dieser ID existiert.
+     *   Die Fehlermeldung enthält den gültigen Bereich, damit Aufrufer ihren Fehler
+     *   sofort sehen (statt einer kontextlosen NoSuchElementException).
+     */
+    fun getById(id: Int): LevelConfig =
+        all.firstOrNull { it.id == id }
+            ?: throw IllegalArgumentException(
+                "Unknown level id: $id (valid ids: ${all.map { it.id }})"
+            )
 
     val totalLevels: Int get() = all.size
 
@@ -162,7 +173,7 @@ object Levels {
                 TurretConfig(Vector2(3700f, 1300f), firePeriodFrames = 80),   // Mittlere Kammer
                 TurretConfig(Vector2(4400f, 2600f), firePeriodFrames = 70),   // Vorkammer Pad
                 TurretConfig(Vector2(5000f, 1100f), firePeriodFrames = 60,    // Schnellster Turm
-                             bulletSpeed = 6f),
+                    bulletSpeed = 6f),
             ),
             terrain         = buildList {
                 add(seg(0f, 0f, W, 0f)); add(seg(0f, 0f, 0f, H))

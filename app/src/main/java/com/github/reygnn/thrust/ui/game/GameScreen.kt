@@ -58,13 +58,16 @@ fun GameScreen(
         // HUD
         GameHud(state = state, modifier = Modifier.align(Alignment.TopStart))
 
-        // Steuerung
+        // Steuerung – jeder Button geht direkt an den passenden VM-Setter, damit die
+        // Inputs sich nicht gegenseitig überschreiben (siehe GameViewModel.onFire-Doku).
         GameControls(
-            onInputChanged   = vm::setInput,
+            onRotateLeft     = vm::onRotateLeft,
+            onRotateRight    = vm::onRotateRight,
+            onThrust         = vm::onThrust,
+            onFire           = vm::onFire,
             onPauseToggle    = vm::togglePause,
             isPaused         = state.phase == GamePhase.Paused,
             playerGunEnabled = gunEnabled,
-            onFire           = vm::onFire,
             modifier         = Modifier.align(Alignment.BottomCenter),
         )
 
@@ -158,19 +161,15 @@ private fun GameHud(state: GameState, modifier: Modifier = Modifier) {
 
 @Composable
 private fun GameControls(
-    onInputChanged:   (InputState) -> Unit,
+    onRotateLeft:     (Boolean) -> Unit,
+    onRotateRight:    (Boolean) -> Unit,
+    onThrust:         (Boolean) -> Unit,
+    onFire:           (Boolean) -> Unit,
     onPauseToggle:    () -> Unit,
     isPaused:         Boolean,
     playerGunEnabled: Boolean,
-    onFire:           (Boolean) -> Unit,
     modifier:         Modifier = Modifier,
 ) {
-    var rotL  by remember { mutableStateOf(false) }
-    var rotR  by remember { mutableStateOf(false) }
-    var thr   by remember { mutableStateOf(false) }
-
-    fun pushInput() = onInputChanged(InputState(rotL, rotR, thr))
-
     Box(modifier = modifier.fillMaxWidth().padding(bottom = 20.dp, start = 16.dp, end = 16.dp)) {
 
         IconButton(
@@ -190,19 +189,13 @@ private fun GameControls(
             verticalAlignment     = Alignment.CenterVertically,
         ) {
             // Links drehen
-            ControlButton(label = "◄", size = 72) { pressed ->
-                rotL = pressed; pushInput()
-            }
+            ControlButton(label = "◄", size = 72, onPress = onRotateLeft)
 
             // Schub
-            ControlButton(label = "▲\nSCHUB", size = 88) { pressed ->
-                thr = pressed; pushInput()
-            }
+            ControlButton(label = "▲\nSCHUB", size = 88, onPress = onThrust)
 
             // Rechts drehen
-            ControlButton(label = "►", size = 72) { pressed ->
-                rotR = pressed; pushInput()
-            }
+            ControlButton(label = "►", size = 72, onPress = onRotateRight)
 
             // FIRE – nur sichtbar wenn Kanone aktiviert
             if (playerGunEnabled) {
@@ -210,7 +203,8 @@ private fun GameControls(
                     label     = "🔥\nFIRE",
                     size      = 72,
                     tintColor = Color(0xFFFF5252),
-                ) { pressed -> onFire(pressed) }
+                    onPress   = onFire,
+                )
             }
         }
     }
