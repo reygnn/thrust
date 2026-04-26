@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- App-wide -->
+    <string name="app_name">Thrust</string>
+
+    <!-- ── Menu ─────────────────────────────────────────────────────────── -->
+    <string name="menu_subtitle">Fuel Pod Rescue Mission</string>
+    <string name="menu_best_scores">BEST SCORES</string>
+    <string name="menu_level_n">Level %1$d</string>
+    <string name="menu_mission_start">MISSION START</string>
+    <string name="menu_high_scores">HIGH SCORES</string>
+    <string name="menu_options">OPTIONS</string>
+
+    <!-- ── High score screen ────────────────────────────────────────────── -->
+    <string name="highscore_title">HIGH SCORES</string>
+    <string name="highscore_back">Zurück</string>
+    <string name="highscore_empty">---</string>
+
+    <!-- ── Options ──────────────────────────────────────────────────────── -->
+    <string name="options_title">Optionen</string>
+    <string name="options_back">Zurück</string>
+    <string name="options_section_gameplay">Gameplay</string>
+    <string name="options_player_cannon">Bordkanone</string>
+    <string name="options_player_cannon_desc">Schießt aus der Raketenspitze. Vor dem Feuern durch Drehen zielen.</string>
+    <string name="options_cannon_active_title">🚀  Kanone aktiv</string>
+    <string name="options_cannon_active_body">Im Spiel erscheint ein FIRE-Knopf. Schüsse verlassen die Raketenspitze in Blickrichtung — drehe, um auf Türme zu zielen. Empfohlen für Level 4.</string>
+    <string name="options_classic_mode_title">🛡  Klassischer Modus</string>
+    <string name="options_classic_mode_body">Keine Kanone — Turmfeuer ausweichen und durch geschicktes Manövrieren überleben. Das originale Thrust-Erlebnis.</string>
+
+    <!-- ── HUD (Arcade-Wörter, bleiben in beiden Sprachen englisch) ─────── -->
+    <string name="hud_score">SCORE %1$d</string>
+    <string name="hud_fuel">FUEL</string>
+    <string name="hud_pod_delivered">POD ✓</string>
+    <string name="hud_pod_picked">POD ○</string>
+    <string name="hud_pod_idle">POD ×</string>
+    <string name="hud_respawn">RESPAWN %1$s</string>
+
+    <!-- ── In-game controls ─────────────────────────────────────────────── -->
+    <string name="control_thrust_label">▲\nSCHUB</string>
+    <string name="control_fire_label">🔥\nFIRE</string>
+
+    <!-- ── Pause overlay ────────────────────────────────────────────────── -->
+    <string name="pause_title">PAUSE</string>
+    <string name="pause_resume">Weiter</string>
+    <string name="pause_quit_to_menu">Menü</string>
+
+    <!-- ── Level complete overlay ───────────────────────────────────────── -->
+    <string name="level_complete_title">MISSION COMPLETE</string>
+    <string name="level_complete_score">Score: %1$d</string>
+    <string name="level_complete_next">Nächstes Level</string>
+
+    <!-- ── Game over overlay ────────────────────────────────────────────── -->
+    <string name="game_over_title">MISSION FAILED</string>
+    <string name="game_over_final_score">Finaler Score: %1$d</string>
+    <string name="game_over_menu">Menü</string>
+    <string name="game_over_retry">RETRY</string>
+
+</resources>

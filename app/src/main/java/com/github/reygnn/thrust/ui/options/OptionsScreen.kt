@@ -6,10 +6,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.github.reygnn.thrust.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -22,7 +24,7 @@ fun OptionsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Options") },
+                title = { Text(stringResource(R.string.options_title)) },
                 navigationIcon = {
                     TextButton(onClick = onNavigateBack) {
                         Text(
@@ -47,9 +49,9 @@ fun OptionsScreen(
         ) {
 
             Text(
-                text = "Gameplay",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
+                text       = stringResource(R.string.options_section_gameplay),
+                style      = MaterialTheme.typography.titleMedium,
+                color      = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
             )
 
@@ -57,19 +59,19 @@ fun OptionsScreen(
 
             // ── Player gun toggle ────────────────────────────────────────────
             Row(
-                modifier = Modifier
+                modifier              = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment     = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text  = "Player Cannon",
+                        text  = stringResource(R.string.options_player_cannon),
                         style = MaterialTheme.typography.bodyLarge,
                     )
                     Text(
-                        text  = "Fire from the rocket tip. Aim by rotating before shooting.",
+                        text  = stringResource(R.string.options_player_cannon_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -95,15 +97,13 @@ fun OptionsScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text  = "🚀  Cannon active",
+                            text  = stringResource(R.string.options_cannon_active_title),
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text  = "A FIRE button appears in-game. " +
-                                    "Shots leave the rocket tip in the direction you're pointing — " +
-                                    "rotate to aim at turrets. Recommended for Level 4.",
+                            text  = stringResource(R.string.options_cannon_active_body),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                         )
@@ -118,14 +118,13 @@ fun OptionsScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text  = "🛡  Classic mode",
+                            text  = stringResource(R.string.options_classic_mode_title),
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text  = "No cannon — dodge turret fire and survive by maneuvering. " +
-                                    "The original Thrust experience.",
+                            text  = stringResource(R.string.options_classic_mode_body),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
