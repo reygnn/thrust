@@ -58,6 +58,21 @@ fun GameScreen(
         // HUD
         GameHud(state = state, modifier = Modifier.align(Alignment.TopStart))
 
+        // Pause-Button frei oben rechts – bewusst getrennt von der Steuerleiste,
+        // damit er sie nie überdeckt (auch nicht bei aktivierter Kanone).
+        IconButton(
+            onClick  = vm::togglePause,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(12.dp),
+        ) {
+            Text(
+                text  = if (state.phase == GamePhase.Paused) "▶" else "⏸",
+                color = Color.White,
+                style = MaterialTheme.typography.titleLarge,
+            )
+        }
+
         // Steuerung – jeder Button geht direkt an den passenden VM-Setter, damit die
         // Inputs sich nicht gegenseitig überschreiben (siehe GameViewModel.onFire-Doku).
         GameControls(
@@ -65,8 +80,6 @@ fun GameScreen(
             onRotateRight    = vm::onRotateRight,
             onThrust         = vm::onThrust,
             onFire           = vm::onFire,
-            onPauseToggle    = vm::togglePause,
-            isPaused         = state.phase == GamePhase.Paused,
             playerGunEnabled = gunEnabled,
             modifier         = Modifier.align(Alignment.BottomCenter),
         )
@@ -79,8 +92,8 @@ fun GameScreen(
                 onNext    = vm::advanceToNextLevel,
             )
             GamePhase.GameOver -> GameOverOverlay(
-                score  = state.score,
-                onQuit = vm::onGameOverConfirmed,
+                score   = state.score,
+                onQuit  = vm::onGameOverConfirmed,
                 onRetry = vm::restartLevel,
             )
             GamePhase.Paused -> PausedOverlay(
@@ -165,47 +178,33 @@ private fun GameControls(
     onRotateRight:    (Boolean) -> Unit,
     onThrust:         (Boolean) -> Unit,
     onFire:           (Boolean) -> Unit,
-    onPauseToggle:    () -> Unit,
-    isPaused:         Boolean,
     playerGunEnabled: Boolean,
     modifier:         Modifier = Modifier,
 ) {
-    Box(modifier = modifier.fillMaxWidth().padding(bottom = 20.dp, start = 16.dp, end = 16.dp)) {
+    Row(
+        modifier              = modifier
+            .fillMaxWidth()
+            .padding(bottom = 20.dp, start = 16.dp, end = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment     = Alignment.CenterVertically,
+    ) {
+        // Links drehen
+        ControlButton(label = "◄", size = 72, onPress = onRotateLeft)
 
-        IconButton(
-            onClick  = onPauseToggle,
-            modifier = Modifier.align(Alignment.TopEnd),
-        ) {
-            Text(
-                text  = if (isPaused) "▶" else "⏸",
-                color = Color.White,
-                style = MaterialTheme.typography.titleLarge,
+        // Schub
+        ControlButton(label = "▲\nSCHUB", size = 88, onPress = onThrust)
+
+        // Rechts drehen
+        ControlButton(label = "►", size = 72, onPress = onRotateRight)
+
+        // FIRE – nur sichtbar wenn Kanone aktiviert
+        if (playerGunEnabled) {
+            ControlButton(
+                label     = "🔥\nFIRE",
+                size      = 72,
+                tintColor = Color(0xFFFF5252),
+                onPress   = onFire,
             )
-        }
-
-        Row(
-            modifier              = Modifier.fillMaxWidth().align(Alignment.BottomCenter),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment     = Alignment.CenterVertically,
-        ) {
-            // Links drehen
-            ControlButton(label = "◄", size = 72, onPress = onRotateLeft)
-
-            // Schub
-            ControlButton(label = "▲\nSCHUB", size = 88, onPress = onThrust)
-
-            // Rechts drehen
-            ControlButton(label = "►", size = 72, onPress = onRotateRight)
-
-            // FIRE – nur sichtbar wenn Kanone aktiviert
-            if (playerGunEnabled) {
-                ControlButton(
-                    label     = "🔥\nFIRE",
-                    size      = 72,
-                    tintColor = Color(0xFFFF5252),
-                    onPress   = onFire,
-                )
-            }
         }
     }
 }
@@ -256,9 +255,9 @@ private fun LevelCompleteOverlay(score: Int, levelName: String, onNext: () -> Un
             colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         ) {
             Column(
-                modifier                = Modifier.padding(32.dp),
-                horizontalAlignment     = Alignment.CenterHorizontally,
-                verticalArrangement     = Arrangement.spacedBy(16.dp),
+                modifier            = Modifier.padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Text("MISSION COMPLETE", style = MaterialTheme.typography.headlineMedium, color = ThrustGreen)
                 Text(levelName, style = MaterialTheme.typography.titleLarge, color = ThrustCyan)
@@ -282,9 +281,9 @@ private fun GameOverOverlay(score: Int, onQuit: () -> Unit, onRetry: () -> Unit)
             colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         ) {
             Column(
-                modifier                = Modifier.padding(32.dp),
-                horizontalAlignment     = Alignment.CenterHorizontally,
-                verticalArrangement     = Arrangement.spacedBy(16.dp),
+                modifier            = Modifier.padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Text("MISSION FAILED", style = MaterialTheme.typography.headlineMedium, color = ThrustRed)
                 Text("Finaler Score: $score", style = MaterialTheme.typography.headlineMedium)
@@ -305,9 +304,9 @@ private fun PausedOverlay(onResume: () -> Unit, onQuit: () -> Unit) {
     ) {
         Card(modifier = Modifier.padding(32.dp)) {
             Column(
-                modifier                = Modifier.padding(32.dp),
-                horizontalAlignment     = Alignment.CenterHorizontally,
-                verticalArrangement     = Arrangement.spacedBy(16.dp),
+                modifier            = Modifier.padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Text("PAUSE", style = MaterialTheme.typography.headlineLarge)
                 Button(onClick = onResume, modifier = Modifier.fillMaxWidth()) { Text("WEITER") }

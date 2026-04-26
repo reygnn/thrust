@@ -22,8 +22,8 @@ class PhysicsEngine(
                 state.copy(
                     ship   = Ship(position = state.levelConfig.shipStart, angle = state.levelConfig.shipStartAngle),
                     fuelPod = if (state.ship.hasPod)
-                                  FuelPod(position = state.levelConfig.fuelPodPosition)
-                              else state.fuelPod,
+                        FuelPod(position = state.levelConfig.fuelPodPosition)
+                    else state.fuelPod,
                     frameCount = state.frameCount + 1,
                 )
             } else {
@@ -42,7 +42,7 @@ class PhysicsEngine(
         }
 
         // 3. Turrets + enemy bullets
-        val (turrets, newEnemyBullets) = fireTurrets(state.turrets, state.frameCount, state.ship.position)
+        val (turrets, newEnemyBullets) = fireTurrets(state.turrets, state.ship.position)
 
         // 4. Spieler-Bullet von Raketenspitze
         var fireCooldown = (state.playerFireCooldown - 1).coerceAtLeast(0)
@@ -52,10 +52,9 @@ class PhysicsEngine(
             val tipDir = Vector2(sin(rad), -cos(rad))
             val tipPos = ship.position + tipDir * (PhysicsConstants.SHIP_RADIUS + 4f)
             newPlayerBullets += Bullet(
-                position  = tipPos,
-                // Spieler-Geschwindigkeit addieren → "Momentum"-Gefühl
-                velocity  = tipDir * PhysicsConstants.PLAYER_BULLET_SPEED + ship.velocity * 0.5f,
-                isEnemy   = false,
+                position   = tipPos,
+                velocity   = tipDir * PhysicsConstants.PLAYER_BULLET_SPEED + ship.velocity * 0.5f,
+                isEnemy    = false,
                 lifeFrames = PhysicsConstants.PLAYER_BULLET_LIFETIME,
             )
             fireCooldown = PhysicsConstants.FIRE_COOLDOWN_FRAMES
@@ -66,8 +65,8 @@ class PhysicsEngine(
             .map { b -> b.copy(position = b.position + b.velocity, lifeFrames = b.lifeFrames - 1) }
             .filter { b ->
                 b.lifeFrames > 0 &&
-                b.position.x in 0f..state.levelConfig.worldWidth &&
-                b.position.y in 0f..state.levelConfig.worldHeight
+                        b.position.x in 0f..state.levelConfig.worldWidth &&
+                        b.position.y in 0f..state.levelConfig.worldHeight
             }
 
         // 6. Spieler-Bullets treffen Turrets
@@ -147,32 +146,25 @@ class PhysicsEngine(
         playerFireCooldown = fireCooldown,
     )
 
-    /**
-     * Prüft für jeden Spieler-Bullet ob er einen Turret trifft (Radius 14f).
-     * Getroffene Turrets werden zerstört, die treffenden Bullets entfernt.
-     */
     private fun resolvePlayerBulletsVsTurrets(
         bullets: List<Bullet>,
         turrets: List<Turret>,
     ): Pair<List<Turret>, List<Bullet>> {
-        val destroyedIndices = mutableSetOf<Int>()
+        val destroyedIndices      = mutableSetOf<Int>()
         val consumedBulletIndices = mutableSetOf<Int>()
 
         bullets.forEachIndexed { bi, bullet ->
             if (bullet.isEnemy) return@forEachIndexed
             turrets.forEachIndexed { ti, turret ->
                 if (turret.isDestroyed || ti in destroyedIndices) return@forEachIndexed
-                val dist = (bullet.position - turret.config.position).length()
-                if (dist < 14f) {
-                    destroyedIndices += ti
+                if ((bullet.position - turret.config.position).length() < 14f) {
+                    destroyedIndices      += ti
                     consumedBulletIndices += bi
                 }
             }
         }
 
-        val updatedTurrets = turrets.mapIndexed { i, t ->
-            if (i in destroyedIndices) t.copy(isDestroyed = true) else t
-        }
+        val updatedTurrets   = turrets.mapIndexed { i, t -> if (i in destroyedIndices) t.copy(isDestroyed = true) else t }
         val remainingBullets = bullets.filterIndexed { i, _ -> i !in consumedBulletIndices }
         return updatedTurrets to remainingBullets
     }
@@ -181,12 +173,11 @@ class PhysicsEngine(
         var angle = ship.angle
         if (input.rotateLeft)  angle -= PhysicsConstants.ROTATION_SPEED
         if (input.rotateRight) angle += PhysicsConstants.ROTATION_SPEED
-        // normalise to (-180, 180]
         angle = ((angle + 180f) % 360f + 360f) % 360f - 180f
 
-        val rad = Math.toRadians(angle.toDouble()).toFloat()
-        var vx  = ship.velocity.x
-        var vy  = ship.velocity.y
+        val rad  = Math.toRadians(angle.toDouble()).toFloat()
+        var vx   = ship.velocity.x
+        var vy   = ship.velocity.y
         var fuel = ship.fuel
 
         if (input.thrust && fuel > 0f) {
@@ -225,23 +216,37 @@ class PhysicsEngine(
         return pod.copy(position = pos, velocity = vel)
     }
 
+    /**
+     * Per-turret cooldown countdown.
+     *
+     * Decrement first, then check — this makes the effective period exactly equal
+     * to [TurretConfig.firePeriodFrames]:
+     *
+     *   init cooldown = N → updates 1..N-1 just decrement → update N hits 0 and fires
+     *   → reset to N → next shot N updates later.
+     *
+     * Using `if (cooldownFrames <= 0)` BEFORE decrementing would cause an off-by-one
+     * (effective period = N+1) — see the unit tests for the exact frame timing.
+     */
     private fun fireTurrets(
         turrets: List<Turret>,
-        frameCount: Long,
         shipPos: Vector2,
     ): Pair<List<Turret>, List<Bullet>> {
         val newBullets = mutableListOf<Bullet>()
         val updated = turrets.map { t ->
             if (t.isDestroyed) return@map t
-            if (frameCount > 0L && frameCount % t.config.firePeriodFrames == 0L) {
+            val ticked = t.cooldownFrames - 1
+            if (ticked <= 0) {
                 val dir = (shipPos - t.config.position).normalized()
                 newBullets += Bullet(
                     position = t.config.position + dir * 16f,
                     velocity = dir * t.config.bulletSpeed,
                     isEnemy  = true,
                 )
+                t.copy(cooldownFrames = t.config.firePeriodFrames)
+            } else {
+                t.copy(cooldownFrames = ticked)
             }
-            t
         }
         return updated to newBullets
     }

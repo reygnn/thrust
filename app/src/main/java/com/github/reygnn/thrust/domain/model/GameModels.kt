@@ -37,15 +37,17 @@ data class TurretConfig(
 )
 
 /**
- * Runtime state of a turret. The fire timing is derived directly from
- * [GameState.frameCount] modulo [TurretConfig.firePeriodFrames] in
- * [com.github.reygnn.thrust.domain.engine.PhysicsEngine.fireTurrets] – we
- * don't keep a per-turret countdown. If you ever need staggered firing
- * (multiple turrets with the same period firing on different frames),
- * reintroduce a per-turret offset or cooldown counter here.
+ * Runtime state of a turret.
+ *
+ * [cooldownFrames] is decremented by [com.github.reygnn.thrust.domain.engine.PhysicsEngine]
+ * each frame. When it reaches zero the turret fires and is reset to
+ * [TurretConfig.firePeriodFrames]. Initial values are staggered in
+ * [GameState.initial] so that turrets sharing the same period don't fire
+ * on the same frame.
  */
 data class Turret(
     val config: TurretConfig,
+    val cooldownFrames: Int = 0,    // frames until next shot; counts down each frame
     val isDestroyed: Boolean = false,
 )
 
@@ -97,26 +99,34 @@ data class InputState(
 data class GameState(
     val ship: Ship,
     val fuelPod: FuelPod,
-    val bullets: List<Bullet>      = emptyList(),
-    val turrets: List<Turret>      = emptyList(),
-    val phase: GamePhase           = GamePhase.Playing,
-    val score: Int                 = 0,
-    val lives: Int                 = 3,
-    val currentLevel: Int          = 1,
+    val bullets: List<Bullet>   = emptyList(),
+    val turrets: List<Turret>   = emptyList(),
+    val phase: GamePhase        = GamePhase.Playing,
+    val score: Int              = 0,
+    val lives: Int              = 3,
+    val currentLevel: Int       = 1,
     val levelConfig: LevelConfig,
-    val frameCount: Long           = 0L,
-    val isThrusting: Boolean       = false,
-    val playerFireCooldown: Int    = 0,   // frames remaining until next shot allowed
+    val frameCount: Long        = 0L,
+    val isThrusting: Boolean    = false,
+    val playerFireCooldown: Int = 0,
 ) {
     companion object {
         fun initial(config: LevelConfig, score: Int = 0, lives: Int = 3) = GameState(
-            ship        = Ship(position = config.shipStart, angle = config.shipStartAngle),
-            fuelPod     = FuelPod(position = config.fuelPodPosition),
-            turrets     = config.turrets.map { Turret(config = it) },
-            score       = score,
-            lives       = lives,
+            ship    = Ship(position = config.shipStart, angle = config.shipStartAngle),
+            fuelPod = FuelPod(position = config.fuelPodPosition),
+            // Stagger initial cooldowns by index so turrets with equal firePeriodFrames
+            // don't fire on the same frame. Offset = (idx * 7) % period is deterministic
+            // and keeps tests reproducible while avoiding lock-step firing.
+            turrets = config.turrets.mapIndexed { idx, cfg ->
+                Turret(
+                    config         = cfg,
+                    cooldownFrames = cfg.firePeriodFrames - (idx * 7) % cfg.firePeriodFrames,
+                )
+            },
+            score        = score,
+            lives        = lives,
             currentLevel = config.id,
-            levelConfig = config,
+            levelConfig  = config,
         )
     }
 }

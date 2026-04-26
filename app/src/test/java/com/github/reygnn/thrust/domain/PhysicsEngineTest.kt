@@ -184,4 +184,61 @@ class PhysicsEngineTest {
         val after = sut.update(s, InputState())
         assertEquals(1L, after.frameCount)
     }
+
+    // ── Turret cadence (per-turret cooldown, decrement-then-check) ───────────
+
+    @Test fun `turret does not fire on frame 1`() {
+        // idx=0 → initial cooldown = 10 - (0*7)%10 = 10. After update 1, ticked=9.
+        val cfg   = level1.copy(turrets = listOf(TurretConfig(Vector2(500f, 500f), firePeriodFrames = 10)))
+        val s     = GameState.initial(cfg)
+        val after = sut.update(s, InputState())
+        assertEquals(0, after.bullets.count { it.isEnemy })
+    }
+
+    @Test fun `turret fires exactly once when cooldown reaches zero`() {
+        // idx=0 → init cooldown = 10. Engine decrements first, then checks `ticked <= 0`.
+        // Updates 1..9 just tick down (10→9, 9→8, …, 2→1). Update 10: ticked = 0 → fire.
+        // Effective period = firePeriodFrames (no off-by-one).
+        val cfg = level1.copy(turrets = listOf(TurretConfig(Vector2(500f, 500f), firePeriodFrames = 10)))
+        var s   = GameState.initial(cfg)
+        repeat(10) { s = sut.update(s, InputState()) }
+        assertEquals(1, s.bullets.count { it.isEnemy })
+    }
+
+    @Test fun `turret fires every firePeriodFrames updates after the first shot`() {
+        // After the first shot at update 10, cooldown resets to 10 and the next shot
+        // lands at update 20. Confirms the period is exactly firePeriodFrames, not +1.
+        val cfg = level1.copy(turrets = listOf(TurretConfig(Vector2(500f, 500f), firePeriodFrames = 10)))
+        var s   = GameState.initial(cfg)
+        val fireFrames = mutableListOf<Int>()
+        repeat(25) { frame ->
+            val before = s.bullets.count { it.isEnemy }
+            s = sut.update(s, InputState())
+            if (s.bullets.count { it.isEnemy } > before) fireFrames += (frame + 1)
+        }
+        // We expect shots on updates 10 and 20. (Bullets from update 10 may still be
+        // alive on update 20 as long as their lifetime allows; we count rising edges.)
+        assertEquals(listOf(10, 20), fireFrames)
+    }
+
+    @Test fun `two turrets with same period fire on different frames`() {
+        // idx=0 → cooldown=20, first shot on update 20
+        // idx=1 → cooldown = 20 - (1*7)%20 = 13, first shot on update 13
+        val cfg = level1.copy(
+            turrets = listOf(
+                TurretConfig(Vector2(500f, 500f), firePeriodFrames = 20),
+                TurretConfig(Vector2(600f, 500f), firePeriodFrames = 20),
+            )
+        )
+        var s = GameState.initial(cfg)
+        val fireFrames = mutableListOf<Int>()
+        repeat(25) { frame ->
+            val before = s.bullets.count { it.isEnemy }
+            s = sut.update(s, InputState())
+            val after = s.bullets.count { it.isEnemy }
+            if (after > before) fireFrames += (frame + 1)
+        }
+        assertEquals("both turrets must have fired", 2, fireFrames.size)
+        assertNotEquals("turrets must not fire on the same frame", fireFrames[0], fireFrames[1])
+    }
 }
