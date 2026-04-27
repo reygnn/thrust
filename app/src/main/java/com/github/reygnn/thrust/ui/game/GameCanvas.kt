@@ -18,7 +18,6 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import com.github.reygnn.thrust.domain.engine.PhysicsConstants
 import com.github.reygnn.thrust.domain.model.*
-import kotlin.math.abs
 
 // ── Größen-Konstanten ─────────────────────────────────────────────────────────
 
@@ -28,24 +27,40 @@ private const val FLAME_BASE  = 22f
 private const val FLAME_EXTRA = 14f
 private const val POD_HALF    = 11f
 
+/**
+ * Vertikaler Camera-Offset als Anteil der Bildschirmhöhe.
+ *
+ * Die Rakete wird um diesen Anteil nach OBEN von der Bildschirmmitte verschoben,
+ * damit sie nicht von der Steuerleiste am unteren Bildschirmrand verdeckt wird.
+ *
+ * 0.18 = 18% der Bildschirmhöhe — empirisch ein guter Kompromiss zwischen
+ * "Rakete ist sichtbar über den Controls" und "die obere Hälfte der Welt ist
+ * nicht zu früh am Bildschirmrand". Falls einzelne Spieler das anders wollen,
+ * kann das später als Setting konfigurierbar gemacht werden.
+ *
+ * Hinweis: gilt sowohl im Buttons- als auch im Wheel-Modus, weil in beiden
+ * die Hand am unteren Bildschirmrand sitzt und Sichtbereich verdeckt.
+ */
+private const val CAMERA_VERTICAL_OFFSET = 0.18f
+
 // ── Farben ────────────────────────────────────────────────────────────────────
 
-private val BgColor         = Color(0xFF080C1E)
-private val TerrainColor    = Color(0xFF3D6B4A)
-private val TerrainGlow     = Color(0xFF2E7D32)
-private val PadColor        = Color(0xFF00E5FF)
-private val PadDelivered    = Color(0xFF00FF88)
-private val ShipColor       = Color(0xFFEEEEEE)
-private val CockpitColor    = Color(0xFF00E5FF)
-private val FlameOuter      = Color(0xFFFF6D00)
-private val FlameInner      = Color(0xFFFFEA00)
-private val RopeColor       = Color(0xFFFFD700)
-private val PodColor        = Color(0xFFFFD700)
-private val PodBorder       = Color(0xFFFFA000)
-private val TurretColor     = Color(0xFFFF1744)
-private val TurretCore      = Color(0xFFFFFFFF)
+private val BgColor          = Color(0xFF080C1E)
+private val TerrainColor     = Color(0xFF3D6B4A)
+private val TerrainGlow      = Color(0xFF2E7D32)
+private val PadColor         = Color(0xFF00E5FF)
+private val PadDelivered     = Color(0xFF00FF88)
+private val ShipColor        = Color(0xFFEEEEEE)
+private val CockpitColor     = Color(0xFF00E5FF)
+private val FlameOuter       = Color(0xFFFF6D00)
+private val FlameInner       = Color(0xFFFFEA00)
+private val RopeColor        = Color(0xFFFFD700)
+private val PodColor         = Color(0xFFFFD700)
+private val PodBorder        = Color(0xFFFFA000)
+private val TurretColor      = Color(0xFFFF1744)
+private val TurretCore       = Color(0xFFFFFFFF)
 private val EnemyBulletColor = Color(0xFFFF5252)
-private val FriendlyBullet  = Color(0xFF69FF47)
+private val FriendlyBullet   = Color(0xFF69FF47)
 
 // ── Öffentliches Composable ───────────────────────────────────────────────────
 
@@ -55,10 +70,16 @@ fun GameCanvas(
     modifier: Modifier = Modifier.fillMaxSize(),
 ) {
     Canvas(modifier = modifier) {
-        // Kamera: Schiff zentrieren, Weltgrenzen einhalten
-        val camX = (state.ship.position.x - size.width / 2f)
+        // Camera-Logik:
+        // 1. Bildschirmmittelpunkt für die Rakete um CAMERA_VERTICAL_OFFSET nach oben
+        //    verschieben (damit die Rakete nicht hinter den Steuer-Buttons sitzt).
+        // 2. Welt-Rand als Hard-Cap: wenn die Rakete sich dem Welt-Rand nähert,
+        //    klebt die Camera am Welt-Rand statt mit nach draußen zu wandern.
+        val targetScreenY = size.height * (0.5f - CAMERA_VERTICAL_OFFSET)
+
+        val camX = (state.ship.position.x - size.width  / 2f)
             .coerceIn(0f, (state.levelConfig.worldWidth  - size.width ).coerceAtLeast(0f))
-        val camY = (state.ship.position.y - size.height / 2f)
+        val camY = (state.ship.position.y - targetScreenY)
             .coerceIn(0f, (state.levelConfig.worldHeight - size.height).coerceAtLeast(0f))
 
         // Hintergrund
@@ -97,7 +118,6 @@ private fun DrawScope.drawTerrain(terrain: List<TerrainSegment>) {
             strokeWidth = 4f,
             cap         = StrokeCap.Round,
         )
-        // Leichter Glow-Effekt (dünnere hellere Linie darüber)
         drawLine(
             color       = TerrainGlow.copy(alpha = 0.35f),
             start       = Offset(seg.start.x, seg.start.y),
@@ -111,10 +131,9 @@ private fun DrawScope.drawTerrain(terrain: List<TerrainSegment>) {
 // ── Landeplatte ───────────────────────────────────────────────────────────────
 
 private fun DrawScope.drawLandingPad(pad: LandingPad, isDelivered: Boolean) {
-    val color  = if (isDelivered) PadDelivered else PadColor
-    val alpha  = if (isDelivered) 1f else 0.9f
+    val color = if (isDelivered) PadDelivered else PadColor
+    val alpha = if (isDelivered) 1f else 0.9f
 
-    // Platte
     drawLine(
         color       = color.copy(alpha = alpha),
         start       = Offset(pad.left, pad.y),
@@ -122,7 +141,6 @@ private fun DrawScope.drawLandingPad(pad: LandingPad, isDelivered: Boolean) {
         strokeWidth = 6f,
     )
 
-    // Leuchtmarkierungen
     val beaconCount = 5
     val spacing     = (pad.right - pad.left) / (beaconCount - 1)
     repeat(beaconCount) { i ->
@@ -130,9 +148,7 @@ private fun DrawScope.drawLandingPad(pad: LandingPad, isDelivered: Boolean) {
         drawCircle(color.copy(alpha = 0.8f), radius = 5f, center = Offset(bx, pad.y - 4f))
     }
 
-    // "LAND HERE" Label wenn Pod noch nicht abgeliefert
     if (!isDelivered) {
-        // Kleines visuelles Dreieck als Pfeil
         val arrowPath = Path().apply {
             moveTo(pad.center.x, pad.y - 30f)
             lineTo(pad.center.x - 12f, pad.y - 50f)
@@ -146,7 +162,6 @@ private fun DrawScope.drawLandingPad(pad: LandingPad, isDelivered: Boolean) {
 // ── Fuel Pod ─────────────────────────────────────────────────────────────────
 
 private fun DrawScope.drawFuelPod(pod: FuelPod, ship: Ship) {
-    // Seil
     if (pod.isPickedUp) {
         drawLine(
             color       = RopeColor.copy(alpha = 0.7f),
@@ -157,7 +172,6 @@ private fun DrawScope.drawFuelPod(pod: FuelPod, ship: Ship) {
         )
     }
 
-    // Pod-Körper (Quadrat)
     val px = pod.position.x; val py = pod.position.y
     drawRect(
         color   = PodColor,
@@ -165,12 +179,11 @@ private fun DrawScope.drawFuelPod(pod: FuelPod, ship: Ship) {
         size    = Size(POD_HALF * 2, POD_HALF * 2),
     )
     drawRect(
-        color       = PodBorder,
-        topLeft     = Offset(px - POD_HALF, py - POD_HALF),
-        size        = Size(POD_HALF * 2, POD_HALF * 2),
-        style       = Stroke(width = 2f),
+        color   = PodBorder,
+        topLeft = Offset(px - POD_HALF, py - POD_HALF),
+        size    = Size(POD_HALF * 2, POD_HALF * 2),
+        style   = Stroke(width = 2f),
     )
-    // Kleines Kreuz-Symbol
     drawLine(PodBorder, Offset(px - 5f, py), Offset(px + 5f, py), strokeWidth = 1.5f)
     drawLine(PodBorder, Offset(px, py - 5f), Offset(px, py + 5f), strokeWidth = 1.5f)
 }
@@ -182,7 +195,6 @@ private fun DrawScope.drawShip(ship: Ship, isThrusting: Boolean, frame: Long) {
         translate(ship.position.x, ship.position.y)
         rotate(degrees = ship.angle, pivot = Offset.Zero)
     }) {
-        // Schiff-Dreieck (Nase zeigt nach oben = negativem y)
         val path = Path().apply {
             moveTo(0f, -SHIP_H / 2f)
             lineTo(-SHIP_W / 2f,  SHIP_H / 2f)
@@ -195,10 +207,8 @@ private fun DrawScope.drawShip(ship: Ship, isThrusting: Boolean, frame: Long) {
             style = Stroke(width = 2f, cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
 
-        // Cockpit
         drawCircle(CockpitColor, radius = 4f, center = Offset(0f, -5f))
 
-        // Triebwerksstrahl (Frames wechseln → Flackern)
         if (isThrusting) {
             val varLen = if (frame % 2L == 0L) FLAME_BASE + FLAME_EXTRA else FLAME_BASE
             val flame  = Path().apply {
@@ -237,7 +247,6 @@ private fun DrawScope.drawTurret(turret: Turret) {
     drawCircle(TurretColor, radius = 13f, center = Offset(pos.x, pos.y))
     drawCircle(TurretColor, radius = 13f, center = Offset(pos.x, pos.y), style = Stroke(2.5f))
     drawCircle(TurretCore,  radius = 4f,  center = Offset(pos.x, pos.y))
-    // Kleines Kanonenrohr
     drawLine(
         color       = TurretColor,
         start       = Offset(pos.x, pos.y),
