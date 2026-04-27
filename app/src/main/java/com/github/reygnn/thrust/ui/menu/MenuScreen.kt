@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.reygnn.thrust.R
+import com.github.reygnn.thrust.domain.level.Levels
 import com.github.reygnn.thrust.ui.theme.ThrustCyan
 import com.github.reygnn.thrust.ui.theme.ThrustDark
 import com.github.reygnn.thrust.ui.theme.ThrustNavy
@@ -27,6 +28,7 @@ fun MenuScreen(
     vm:            MenuViewModel = viewModel(factory = MenuViewModel.Factory),
 ) {
     val highScores by vm.highScores.collectAsStateWithLifecycle()
+    val totalLevels = Levels.totalLevels
 
     Box(
         modifier = Modifier
@@ -34,34 +36,43 @@ fun MenuScreen(
             .background(
                 Brush.verticalGradient(listOf(ThrustDark, ThrustNavy, ThrustDark))
             ),
-        contentAlignment = Alignment.Center,
     ) {
+        // ── Header (Titel + Untertitel) oben ──────────────────────────────────
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-            modifier            = Modifier.padding(48.dp),
+            modifier            = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 24.dp, start = 24.dp, end = 24.dp),
         ) {
-            // Titel – Eigenname, nicht lokalisiert
             Text(
-                text      = "THRUST",
-                style     = MaterialTheme.typography.displayLarge,
+                text      = "THRUST", // Eigenname, nicht lokalisiert
+                style     = MaterialTheme.typography.displayMedium,
                 color     = ThrustCyan,
                 textAlign = TextAlign.Center,
             )
             Text(
                 text      = stringResource(R.string.menu_subtitle),
-                style     = MaterialTheme.typography.titleLarge,
+                style     = MaterialTheme.typography.titleMedium,
                 color     = Color.White.copy(alpha = 0.6f),
                 textAlign = TextAlign.Center,
             )
+        }
 
-            Spacer(Modifier.height(8.dp))
-
-            // Highscores-Vorschau
+        // ── Hauptbereich (Highscores + Buttons nebeneinander) ─────────────────
+        Row(
+            modifier              = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 32.dp),
+            horizontalArrangement = Arrangement.spacedBy(32.dp),
+            verticalAlignment     = Alignment.CenterVertically,
+        ) {
+            // Linke Spalte: Highscores
+            // Iteriert dynamisch über alle Level (skaliert mit Levels.totalLevels).
+            // Wird nur angezeigt, wenn mindestens ein Highscore vorhanden ist.
             if (highScores.values.any { it > 0 }) {
                 Card(
                     colors   = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
-                    modifier = Modifier.fillMaxWidth(0.5f),
+                    modifier = Modifier.weight(1f),
                 ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
@@ -69,7 +80,7 @@ fun MenuScreen(
                             style = MaterialTheme.typography.labelLarge,
                             color = ThrustCyan,
                         )
-                        (1..3).forEach { lvl ->
+                        (1..totalLevels).forEach { lvl ->
                             val hs = highScores[lvl] ?: 0
                             if (hs > 0) {
                                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
@@ -78,39 +89,51 @@ fun MenuScreen(
                                         style = MaterialTheme.typography.bodyLarge,
                                         color = Color.White,
                                     )
-                                    Text("$hs", style = MaterialTheme.typography.bodyLarge, color = ThrustCyan)
+                                    Text(
+                                        text  = "$hs",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = ThrustCyan,
+                                    )
                                 }
                             }
                         }
                     }
                 }
+            } else {
+                // Wenn keine Highscores existieren, lassen wir links Platz frei,
+                // damit die Buttons rechts nicht in die Bildschirmmitte rutschen.
+                Spacer(modifier = Modifier.weight(1f))
             }
 
-            Spacer(Modifier.height(8.dp))
-
-            // Buttons
-            Button(
-                onClick  = onStartGame,
-                modifier = Modifier.fillMaxWidth(0.45f).height(54.dp),
+            // Rechte Spalte: Buttons
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier            = Modifier.weight(1f),
             ) {
-                Text(
-                    text  = stringResource(R.string.menu_mission_start),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
+                Button(
+                    onClick  = onStartGame,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                ) {
+                    Text(
+                        text  = stringResource(R.string.menu_mission_start),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
 
-            OutlinedButton(
-                onClick  = onHighScores,
-                modifier = Modifier.fillMaxWidth(0.45f).height(48.dp),
-            ) {
-                Text(stringResource(R.string.menu_high_scores))
-            }
+                OutlinedButton(
+                    onClick  = onHighScores,
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                ) {
+                    Text(stringResource(R.string.menu_high_scores))
+                }
 
-            OutlinedButton(
-                onClick  = onOptions,
-                modifier = Modifier.fillMaxWidth(0.45f).height(48.dp),
-            ) {
-                Text(stringResource(R.string.menu_options))
+                OutlinedButton(
+                    onClick  = onOptions,
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                ) {
+                    Text(stringResource(R.string.menu_options))
+                }
             }
         }
     }
