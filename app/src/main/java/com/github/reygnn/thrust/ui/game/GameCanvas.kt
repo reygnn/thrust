@@ -33,11 +33,6 @@ private const val POD_HALF    = 11f
  * Die Rakete wird um diesen Anteil nach OBEN von der Bildschirmmitte verschoben,
  * damit sie nicht von der Steuerleiste am unteren Bildschirmrand verdeckt wird.
  *
- * 0.18 = 18% der Bildschirmhöhe — empirisch ein guter Kompromiss zwischen
- * "Rakete ist sichtbar über den Controls" und "die obere Hälfte der Welt ist
- * nicht zu früh am Bildschirmrand". Falls einzelne Spieler das anders wollen,
- * kann das später als Setting konfigurierbar gemacht werden.
- *
  * Hinweis: gilt sowohl im Buttons- als auch im Wheel-Modus, weil in beiden
  * die Hand am unteren Bildschirmrand sitzt und Sichtbereich verdeckt.
  */
@@ -70,11 +65,6 @@ fun GameCanvas(
     modifier: Modifier = Modifier.fillMaxSize(),
 ) {
     Canvas(modifier = modifier) {
-        // Camera-Logik:
-        // 1. Bildschirmmittelpunkt für die Rakete um CAMERA_VERTICAL_OFFSET nach oben
-        //    verschieben (damit die Rakete nicht hinter den Steuer-Buttons sitzt).
-        // 2. Welt-Rand als Hard-Cap: wenn die Rakete sich dem Welt-Rand nähert,
-        //    klebt die Camera am Welt-Rand statt mit nach draußen zu wandern.
         val targetScreenY = size.height * (0.5f - CAMERA_VERTICAL_OFFSET)
 
         val camX = (state.ship.position.x - size.width  / 2f)
@@ -82,10 +72,8 @@ fun GameCanvas(
         val camY = (state.ship.position.y - targetScreenY)
             .coerceIn(0f, (state.levelConfig.worldHeight - size.height).coerceAtLeast(0f))
 
-        // Hintergrund
         drawRect(BgColor)
 
-        // Alles im Welt-Koordinatensystem zeichnen
         translate(-camX, -camY) {
 
             drawTerrain(state.levelConfig.terrain)
@@ -146,16 +134,6 @@ private fun DrawScope.drawLandingPad(pad: LandingPad, isDelivered: Boolean) {
     repeat(beaconCount) { i ->
         val bx = pad.left + i * spacing
         drawCircle(color.copy(alpha = 0.8f), radius = 5f, center = Offset(bx, pad.y - 4f))
-    }
-
-    if (!isDelivered) {
-        val arrowPath = Path().apply {
-            moveTo(pad.center.x, pad.y - 30f)
-            lineTo(pad.center.x - 12f, pad.y - 50f)
-            lineTo(pad.center.x + 12f, pad.y - 50f)
-            close()
-        }
-        drawPath(arrowPath, color.copy(alpha = 0.5f), style = Fill)
     }
 }
 
