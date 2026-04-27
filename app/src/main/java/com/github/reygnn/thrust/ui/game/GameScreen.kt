@@ -82,7 +82,7 @@ fun GameScreen(
                 modifier         = Modifier.align(Alignment.BottomCenter),
             )
             ControlMode.WHEEL -> WheelControls(
-                shipAngle        = state.ship.angle,
+                initialAngle     = state.ship.angle,
                 onTargetAngle    = vm::onTargetAngleChange,
                 onThrust         = vm::onThrust,
                 onFire           = vm::onFireTriggered,
@@ -112,7 +112,7 @@ fun GameScreen(
     }
 }
 
-// ── HUD (unchanged) ───────────────────────────────────────────────────────────
+// ── HUD ───────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun GameHud(state: GameState, modifier: Modifier = Modifier) {
@@ -172,7 +172,7 @@ private fun GameHud(state: GameState, modifier: Modifier = Modifier) {
     }
 }
 
-// ── Buttons-Steuerung (unverändert) ──────────────────────────────────────────
+// ── Buttons-Steuerung ────────────────────────────────────────────────────────
 
 @Composable
 private fun GameControls(
@@ -208,7 +208,7 @@ private fun GameControls(
 
 @Composable
 private fun WheelControls(
-    shipAngle:        Float,
+    initialAngle:     Float,
     onTargetAngle:    (Float?) -> Unit,
     onThrust:         (Boolean) -> Unit,
     onFire:           () -> Unit,
@@ -216,27 +216,13 @@ private fun WheelControls(
     thrustSide:       ThrustSide,
     modifier:         Modifier = Modifier,
 ) {
-    // The wheel UI maintains its own target angle (continuous), separate from the
-    // ship's actual angle (which lags behind due to ROTATION_SPEED limit).
-    var targetAngle by remember { mutableFloatStateOf(shipAngle) }
-
-    // Keep the visible rocket on the wheel synced to whichever is more useful:
-    // — If the user is dragging, show their target.
-    // — If not, snap visually to the actual ship angle so the wheel doesn't drift.
-    // The simplest correct behavior: always show the user-controlled target, and
-    // re-center it to the ship angle when control mode is entered/exited (we just
-    // rely on initial state for now).
-
+    // Beim Eintritt in den Wheel-Modus den initialen Soll-Winkel an die Engine
+    // übergeben, beim Verlassen wieder auf null setzen (Engine-Pfad zu Buttons).
     LaunchedEffect(Unit) {
-        // Inform the engine that we are in slider mode from the start.
-        onTargetAngle(targetAngle)
+        onTargetAngle(initialAngle)
     }
-
     DisposableEffect(Unit) {
-        onDispose {
-            // Leaving wheel mode: clear the engine target so button mode could resume cleanly.
-            onTargetAngle(null)
-        }
+        onDispose { onTargetAngle(null) }
     }
 
     Row(
@@ -253,20 +239,14 @@ private fun WheelControls(
                 onPress = onThrust,
             )
             RotationWheel(
-                angleDegrees  = targetAngle,
-                onAngleChange = { newAngle ->
-                    targetAngle = newAngle
-                    onTargetAngle(newAngle)
-                },
+                initialAngle  = initialAngle,
+                onAngleChange = onTargetAngle,
                 onFire        = { if (playerGunEnabled) onFire() },
             )
         } else {
             RotationWheel(
-                angleDegrees  = targetAngle,
-                onAngleChange = { newAngle ->
-                    targetAngle = newAngle
-                    onTargetAngle(newAngle)
-                },
+                initialAngle  = initialAngle,
+                onAngleChange = onTargetAngle,
                 onFire        = { if (playerGunEnabled) onFire() },
             )
             ControlButton(
@@ -311,7 +291,7 @@ private fun ControlButton(
     }
 }
 
-// ── Overlays (unverändert) ───────────────────────────────────────────────────
+// ── Overlays ─────────────────────────────────────────────────────────────────
 
 @Composable
 private fun LevelCompleteOverlay(score: Int, levelName: String, onNext: () -> Unit) {

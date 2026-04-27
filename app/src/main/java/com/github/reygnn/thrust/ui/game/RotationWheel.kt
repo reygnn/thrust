@@ -19,8 +19,6 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.math.atan2
 
 /**
@@ -36,22 +34,39 @@ import kotlin.math.atan2
  * - Double-tap fires (only when the previous touch has lifted; not detectable
  *   while a drag is in progress).
  *
- * The visible rocket symbol always points in the current target angle direction.
+ * The visible rocket symbol points in the current target angle direction.
  * 0° = up, positive = clockwise (matches the engine's coordinate system).
+ *
+ * Implementation notes:
+ *
+ * 1. The current angle is held as **internal state**, not derived from a parameter.
+ *    Earlier versions read the angle from a parameter inside the pointerInput
+ *    block, which captured a stale value due to closure semantics — each drag
+ *    delta was added to the same starting angle, causing the rotation to "stutter"
+ *    around the initial value instead of accumulating. State must live where the
+ *    pointer handler reads it.
+ *
+ * 2. [initialAngle] seeds the internal state on first composition only. Later
+ *    changes to the parameter are intentionally NOT reflected, because the wheel
+ *    is the source of truth while the user is interacting with it.
+ *
+ * 3. The double-tap detection uses dp→px conversion via [Density.toPx]; the
+ *    PointerInputScope provides a Density implementation, but you must call
+ *    `30.dp.toPx()` inside that scope, not access a `density` property directly.
  */
 @Composable
 fun RotationWheel(
-    angleDegrees: Float,
+    initialAngle: Float,
     onAngleChange: (Float) -> Unit,
     onFire: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Track tap timing for double-tap detection.
-    val doubleTapWindowMs = 350L
-    val doubleTapMaxDistDp = 30f
-    var lastTapTimeMs by remember { mutableStateOf(0L) }
-    var lastTapPos by remember { mutableStateOf<Offset?>(null) }
-    var dragInProgress by remember { mutableStateOf(false) }
+    val doubleTapWindowMs  = 350L
+    val doubleTapMaxDistDp = 30.dp
+
+    // The wheel's current target angle. Held internally so the pointer handler
+    // always reads the up-to-date value (see implementation note 1 above).
+    var currentAngle by remember { mutableFloatStateOf(initialAngle) }
 
     Box(
         modifier = modifier
@@ -61,40 +76,39 @@ fun RotationWheel(
             .border(1.5.dp, Color.White.copy(alpha = 0.30f), CircleShape)
             .pointerInput(Unit) {
                 val centerXY = Offset(size.width / 2f, size.height / 2f)
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    val downPos = down.position
-                    val downTimeMs = System.currentTimeMillis()
-                    var totalMovement = 0f
+                val tapMaxDistPx = doubleTapMaxDistDp.toPx()
 
-                    // Track the previous angle from the wheel's center so we can
-                    // compute the delta as the finger moves around.
+                var lastTapTimeMs = 0L
+                var lastTapPos: Offset? = null
+
+                awaitEachGesture {
+                    val down       = awaitFirstDown(requireUnconsumed = false)
+                    val downPos    = down.position
+                    var totalMovement = 0f
+                    var dragInProgress = false
+
                     var prevAngle = atan2(
                         (downPos.y - centerXY.y).toDouble(),
                         (downPos.x - centerXY.x).toDouble(),
                     )
 
-                    dragInProgress = false
-
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Main)
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
+
                         if (!change.pressed) {
-                            // Pointer up.
+                            // Pointer up — evaluate tap vs. double-tap if it wasn't a drag.
                             val upTimeMs = System.currentTimeMillis()
-                            val gestureWasDrag = dragInProgress
-                            dragInProgress = false
                             change.consume()
 
-                            // If the gesture was a tap (not a drag), evaluate double-tap.
-                            if (!gestureWasDrag && totalMovement < doubleTapMaxDistDp * density) {
+                            if (!dragInProgress && totalMovement < tapMaxDistPx) {
                                 val isDouble =
                                     upTimeMs - lastTapTimeMs <= doubleTapWindowMs &&
                                             lastTapPos != null &&
-                                            (downPos - lastTapPos!!).getDistance() <= doubleTapMaxDistDp * density
+                                            (downPos - lastTapPos!!).getDistance() <= tapMaxDistPx
                                 if (isDouble) {
                                     onFire()
-                                    lastTapTimeMs = 0L  // reset so a triple-tap doesn't fire twice
+                                    lastTapTimeMs = 0L
                                     lastTapPos = null
                                 } else {
                                     lastTapTimeMs = upTimeMs
@@ -107,8 +121,7 @@ fun RotationWheel(
                         val moved = change.positionChange()
                         totalMovement += moved.getDistance()
 
-                        // Once movement exceeds the tap-vs-drag threshold, consider it a drag.
-                        if (!dragInProgress && totalMovement > doubleTapMaxDistDp * density) {
+                        if (!dragInProgress && totalMovement > tapMaxDistPx) {
                             dragInProgress = true
                         }
 
@@ -119,15 +132,16 @@ fun RotationWheel(
                                 (pos.x - centerXY.x).toDouble(),
                             )
                             var delta = Math.toDegrees(curAngle - prevAngle).toFloat()
-                            // Normalize delta to [-180, 180]
-                            if (delta > 180f) delta -= 360f
+                            if (delta >  180f) delta -= 360f
                             if (delta < -180f) delta += 360f
 
-                            // Update target angle. Engine will normalize.
-                            var newAngle = angleDegrees + delta
-                            if (newAngle > 180f) newAngle -= 360f
-                            if (newAngle < -180f) newAngle += 360f
-                            onAngleChange(newAngle)
+                            // Accumulate onto the up-to-date internal state, not the parameter.
+                            var next = currentAngle + delta
+                            if (next >  180f) next -= 360f
+                            if (next < -180f) next += 360f
+
+                            currentAngle = next
+                            onAngleChange(next)
 
                             prevAngle = curAngle
                             change.consume()
@@ -136,18 +150,15 @@ fun RotationWheel(
                 }
             },
     ) {
-        // Rocket symbol pointing in the current angle direction.
         Canvas(modifier = Modifier.size(144.dp)) {
             val cx = size.width / 2f
             val cy = size.height / 2f
-            // Rotate canvas to match angle. 0° = up means a -90° canvas rotation
-            // because canvas 0° points right. So rotation in canvas = angleDegrees - 90.
-            rotate(degrees = angleDegrees - 90f, pivot = Offset(cx, cy)) {
-                // Simple triangle-style rocket pointing in +X direction (after the rotation, this maps to angleDegrees).
+            // Canvas 0° points right; engine 0° points up. So rotate by angle - 90.
+            rotate(degrees = currentAngle - 90f, pivot = Offset(cx, cy)) {
                 val rocketLen = size.width * 0.30f
                 val rocketWid = size.width * 0.10f
                 val path = Path().apply {
-                    moveTo(cx + rocketLen, cy)              // tip
+                    moveTo(cx + rocketLen, cy)                              // tip
                     lineTo(cx - rocketLen * 0.5f, cy - rocketWid)
                     lineTo(cx - rocketLen * 0.3f, cy)
                     lineTo(cx - rocketLen * 0.5f, cy + rocketWid)
