@@ -3,9 +3,12 @@ package com.github.reygnn.thrust.ui.options
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.CreationExtras
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.github.reygnn.thrust.ThrustApplication
+import com.github.reygnn.thrust.data.ControlMode
 import com.github.reygnn.thrust.data.SettingsRepository
+import com.github.reygnn.thrust.data.ThrustSide
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -18,16 +21,29 @@ class OptionsViewModel(
     val playerGunEnabled: StateFlow<Boolean> = settingsRepository.playerGunEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    val controlMode: StateFlow<ControlMode> = settingsRepository.controlMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ControlMode.BUTTONS)
+
+    val thrustSide: StateFlow<ThrustSide> = settingsRepository.thrustSide
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThrustSide.RIGHT)
+
     fun togglePlayerGun(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setPlayerGunEnabled(enabled) }
     }
 
+    fun setControlMode(mode: ControlMode) {
+        viewModelScope.launch { settingsRepository.setControlMode(mode) }
+    }
+
+    fun setThrustSide(side: ThrustSide) {
+        viewModelScope.launch { settingsRepository.setThrustSide(side) }
+    }
+
     companion object {
-        val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
-                val app = extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as ThrustApplication
-                return OptionsViewModel(app.settingsRepository) as T
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as ThrustApplication
+                OptionsViewModel(settingsRepository = app.settingsRepository)
             }
         }
     }

@@ -2,8 +2,10 @@ package com.github.reygnn.thrust.ui.game
 
 import app.cash.turbine.test
 import com.github.reygnn.thrust.MainDispatcherRule
+import com.github.reygnn.thrust.data.ControlMode
 import com.github.reygnn.thrust.data.HighScoreRepository
 import com.github.reygnn.thrust.data.SettingsRepository
+import com.github.reygnn.thrust.data.ThrustSide
 import com.github.reygnn.thrust.domain.engine.PhysicsConstants
 import com.github.reygnn.thrust.domain.engine.PhysicsEngine
 import com.github.reygnn.thrust.domain.level.LevelRepository
@@ -43,6 +45,12 @@ class GameViewModelTest {
         every { highScoreRepo.getHighScores() } returns flowOf(emptyMap())
         coEvery { highScoreRepo.updateHighScore(any(), any()) } just Runs
         every { settingsRepo.playerGunEnabled } returns flowOf(false)
+        // Wheel-Steuerung: SettingsRepository wurde um zwei Felder erweitert.
+        // Beide werden im ViewModel-Konstruktor sofort via stateIn() konsumiert,
+        // also müssen sie hier gestubbt sein – sonst wirft MockK beim Anlegen
+        // des ViewModels und ALLE Tests reißen gleichzeitig durch.
+        every { settingsRepo.controlMode } returns flowOf(ControlMode.BUTTONS)
+        every { settingsRepo.thrustSide }  returns flowOf(ThrustSide.RIGHT)
     }
 
     private fun buildVm(engine: PhysicsEngine = physicsEngine) = GameViewModel(

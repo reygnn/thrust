@@ -88,12 +88,33 @@ sealed interface GamePhase {
 }
 
 // ── Input ─────────────────────────────────────────────────────────────────────
+/**
+ * Player input for one frame.
+ *
+ * Two rotation modes are supported:
+ * - **Button mode** (default): [rotateLeft] / [rotateRight] are booleans.
+ *   The engine applies a fixed rotation step per frame in the indicated
+ *   direction, exactly as before.
+ * - **Wheel/slider mode**: [targetAngle] is non-null. The engine ignores
+ *   [rotateLeft] / [rotateRight] and instead rotates the ship toward
+ *   [targetAngle] at the same per-frame rate. The angle limit per frame is
+ *   identical between modes — wheel mode is more *precise* (you specify the
+ *   exact target), not faster.
+ *
+ * Rule: at most one of (rotateLeft/rotateRight) or targetAngle should be
+ * active at a time. The UI layer is responsible for setting the correct
+ * fields based on the active control mode.
+ */
+
 data class InputState(
-    val rotateLeft: Boolean  = false,
+    val rotateLeft:  Boolean = false,
     val rotateRight: Boolean = false,
-    val thrust: Boolean      = false,
-    val shoot: Boolean       = false,
+    val thrust:      Boolean = false,
+    val shoot:       Boolean = false,
+    /** Slider/wheel mode target angle in degrees, normalized to [-180, 180]. */
+    val targetAngle: Float?  = null,
 )
+
 
 // ── Full game state ───────────────────────────────────────────────────────────
 data class GameState(

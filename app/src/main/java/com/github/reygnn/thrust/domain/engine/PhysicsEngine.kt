@@ -9,18 +9,14 @@ class PhysicsEngine(
     private val collisionDetector: CollisionDetector = CollisionDetector(),
 ) {
 
-    /**
-     * @param playerGunEnabled  kommt aus den Settings; wenn false wird [InputState.shoot] ignoriert.
-     */
     fun update(state: GameState, input: InputState, playerGunEnabled: Boolean = false): GameState {
         if (state.phase != GamePhase.Playing) return state
 
-        // ── Dead-ship respawn countdown ───────────────────────────────────────
         if (!state.ship.isAlive) {
             val remaining = state.ship.respawnTimer - 1
             return if (remaining <= 0) {
                 state.copy(
-                    ship   = Ship(position = state.levelConfig.shipStart, angle = state.levelConfig.shipStartAngle),
+                    ship    = Ship(position = state.levelConfig.shipStart, angle = state.levelConfig.shipStartAngle),
                     fuelPod = if (state.ship.hasPod)
                         FuelPod(position = state.levelConfig.fuelPodPosition)
                     else state.fuelPod,
@@ -31,20 +27,16 @@ class PhysicsEngine(
             }
         }
 
-        // 1. Ship physics
         var ship = applyShipPhysics(state.ship, input, state.levelConfig.gravity)
 
-        // 2. Rope / pod
         var pod = when {
             state.fuelPod.isDelivered  -> state.fuelPod
             state.fuelPod.isPickedUp   -> updateRope(state.fuelPod, ship.position, state.levelConfig.gravity)
             else                       -> state.fuelPod
         }
 
-        // 3. Turrets + enemy bullets
         val (turrets, newEnemyBullets) = fireTurrets(state.turrets, state.ship.position)
 
-        // 4. Spieler-Bullet von Raketenspitze
         var fireCooldown = (state.playerFireCooldown - 1).coerceAtLeast(0)
         val newPlayerBullets = mutableListOf<Bullet>()
         if (playerGunEnabled && input.shoot && fireCooldown == 0) {
@@ -60,7 +52,6 @@ class PhysicsEngine(
             fireCooldown = PhysicsConstants.FIRE_COOLDOWN_FRAMES
         }
 
-        // 5. Move + age all bullets
         val allBullets = (state.bullets + newEnemyBullets + newPlayerBullets)
             .map { b -> b.copy(position = b.position + b.velocity, lifeFrames = b.lifeFrames - 1) }
             .filter { b ->
@@ -69,10 +60,8 @@ class PhysicsEngine(
                         b.position.y in 0f..state.levelConfig.worldHeight
             }
 
-        // 6. Spieler-Bullets treffen Turrets
         val (updatedTurrets, remainingBullets) = resolvePlayerBulletsVsTurrets(allBullets, turrets)
 
-        // 7. Terrain & enemy-bullet hit → death
         val terrainHit = collisionDetector.checkShipTerrain(ship, state.levelConfig.terrain)
         val bulletHit  = remainingBullets.filter { it.isEnemy }.any { collisionDetector.checkBulletShip(it, ship) }
         if (terrainHit || bulletHit) {
@@ -90,13 +79,11 @@ class PhysicsEngine(
             )
         }
 
-        // 8. Pod pickup
         if (!pod.isPickedUp && !pod.isDelivered && collisionDetector.checkPodPickup(ship, pod)) {
             pod  = pod.copy(isPickedUp = true)
             ship = ship.copy(hasPod = true)
         }
 
-        // 9. Pod delivery
         var score = state.score
         if (pod.isPickedUp && !pod.isDelivered && collisionDetector.checkPodDelivery(pod, state.levelConfig.landingPad)) {
             pod   = pod.copy(isPickedUp = false, isDelivered = true)
@@ -104,8 +91,7 @@ class PhysicsEngine(
             score += 500
         }
 
-        // 10. Landing
-        return when (val land = collisionDetector.checkLanding(ship, state.levelConfig.landingPad)) {
+        return when (collisionDetector.checkLanding(ship, state.levelConfig.landingPad)) {
             CollisionDetector.LandingResult.Success -> if (pod.isDelivered) {
                 state.copy(
                     ship = ship, fuelPod = pod, bullets = remainingBullets, turrets = updatedTurrets,
@@ -169,10 +155,28 @@ class PhysicsEngine(
         return updatedTurrets to remainingBullets
     }
 
+    /**
+     * Applies rotation, thrust and gravity for one frame.
+     *
+     * Rotation has two paths:
+     * - Button mode ([InputState.targetAngle] is null): adds [PhysicsConstants.ROTATION_SPEED]
+     *   per pressed direction, exactly as the original engine.
+     * - Slider/wheel mode (targetAngle is non-null): rotates toward the target by at most
+     *   [PhysicsConstants.ROTATION_SPEED] degrees per frame, using the shortest path around
+     *   the 360° circle. This preserves the original rotation-rate skill element — the slider
+     *   can request a target angle but the ship still has rotational inertia.
+     */
     private fun applyShipPhysics(ship: Ship, input: InputState, gravity: Float): Ship {
         var angle = ship.angle
-        if (input.rotateLeft)  angle -= PhysicsConstants.ROTATION_SPEED
-        if (input.rotateRight) angle += PhysicsConstants.ROTATION_SPEED
+
+        if (input.targetAngle != null) {
+            val diff = shortestAngleDiff(input.targetAngle, angle)
+            val step = diff.coerceIn(-PhysicsConstants.ROTATION_SPEED, +PhysicsConstants.ROTATION_SPEED)
+            angle += step
+        } else {
+            if (input.rotateLeft)  angle -= PhysicsConstants.ROTATION_SPEED
+            if (input.rotateRight) angle += PhysicsConstants.ROTATION_SPEED
+        }
         angle = ((angle + 180f) % 360f + 360f) % 360f - 180f
 
         val rad  = Math.toRadians(angle.toDouble()).toFloat()
@@ -202,6 +206,17 @@ class PhysicsEngine(
         )
     }
 
+    /**
+     * Shortest signed angle difference from [from] to [to], in degrees.
+     * Result is in [-180, 180]. Going from 170° to -170° returns +20°, not -340°.
+     */
+    private fun shortestAngleDiff(to: Float, from: Float): Float {
+        var diff = (to - from) % 360f
+        if (diff >  180f) diff -= 360f
+        if (diff < -180f) diff += 360f
+        return diff
+    }
+
     private fun updateRope(pod: FuelPod, shipPos: Vector2, gravity: Float): FuelPod {
         var vel = pod.velocity + Vector2(0f, gravity * 0.6f)
         var pos = pod.position + vel
@@ -216,18 +231,6 @@ class PhysicsEngine(
         return pod.copy(position = pos, velocity = vel)
     }
 
-    /**
-     * Per-turret cooldown countdown.
-     *
-     * Decrement first, then check — this makes the effective period exactly equal
-     * to [TurretConfig.firePeriodFrames]:
-     *
-     *   init cooldown = N → updates 1..N-1 just decrement → update N hits 0 and fires
-     *   → reset to N → next shot N updates later.
-     *
-     * Using `if (cooldownFrames <= 0)` BEFORE decrementing would cause an off-by-one
-     * (effective period = N+1) — see the unit tests for the exact frame timing.
-     */
     private fun fireTurrets(
         turrets: List<Turret>,
         shipPos: Vector2,

@@ -241,4 +241,72 @@ class PhysicsEngineTest {
         assertEquals("both turrets must have fired", 2, fireFrames.size)
         assertNotEquals("turrets must not fire on the same frame", fireFrames[0], fireFrames[1])
     }
+
+    // ── Slider/wheel rotation mode ────────────────────────────────────────────
+
+    @Test fun `slider mode rotates toward target by ROTATION_SPEED per frame`() {
+        // Ship starts at angle 0. Target is +90.
+        // After 1 frame: angle = ROTATION_SPEED.
+        // After enough frames: angle reaches 90.
+        val s0 = baseState().copy(
+            ship = baseState().ship.copy(angle = 0f),
+        )
+        val input = InputState(targetAngle = 90f)
+        val s1 = sut.update(s0, input)
+        assertEquals(PhysicsConstants.ROTATION_SPEED, s1.ship.angle, 0.01f)
+    }
+
+    @Test fun `slider mode does not exceed ROTATION_SPEED in a single frame`() {
+        // Even if target is 180° away, the ship only rotates ROTATION_SPEED per frame.
+        val s0 = baseState().copy(ship = baseState().ship.copy(angle = 0f))
+        val input = InputState(targetAngle = 180f)
+        val s1 = sut.update(s0, input)
+        assertEquals(PhysicsConstants.ROTATION_SPEED, s1.ship.angle, 0.01f)
+    }
+
+    @Test fun `slider mode takes shortest path around the circle`() {
+        // Ship at 170, target at -170. Shortest path is +20 (clockwise across the
+        // discontinuity), not -340. Ship should rotate +ROTATION_SPEED toward 180/-180.
+        val s0 = baseState().copy(ship = baseState().ship.copy(angle = 170f))
+        val input = InputState(targetAngle = -170f)
+        val s1 = sut.update(s0, input)
+        // After one frame, angle should have moved positively (toward +180/-180).
+        // It might wrap to negative if it crossed the boundary.
+        val movedClockwise = s1.ship.angle > 170f || s1.ship.angle < 0f
+        assertTrue("Ship should rotate clockwise via shortest path. got: ${s1.ship.angle}", movedClockwise)
+    }
+
+    @Test fun `slider mode reaches target exactly when within ROTATION_SPEED`() {
+        // Ship at 0, target at half ROTATION_SPEED (so we don't overshoot).
+        val small = PhysicsConstants.ROTATION_SPEED * 0.4f
+        val s0 = baseState().copy(ship = baseState().ship.copy(angle = 0f))
+        val input = InputState(targetAngle = small)
+        val s1 = sut.update(s0, input)
+        assertEquals(small, s1.ship.angle, 0.01f)
+    }
+
+    @Test fun `null targetAngle uses button mode`() {
+        // Ship at 0, no targetAngle, rotateRight pressed → angle goes to ROTATION_SPEED.
+        val s0 = baseState().copy(ship = baseState().ship.copy(angle = 0f))
+        val input = InputState(targetAngle = null, rotateRight = true)
+        val s1 = sut.update(s0, input)
+        assertEquals(PhysicsConstants.ROTATION_SPEED, s1.ship.angle, 0.01f)
+    }
+
+    @Test fun `non-null targetAngle ignores rotateLeft and rotateRight`() {
+        // Even with rotateLeft pressed, the slider target +90 wins.
+        val s0 = baseState().copy(ship = baseState().ship.copy(angle = 0f))
+        val input = InputState(targetAngle = 90f, rotateLeft = true, rotateRight = true)
+        val s1 = sut.update(s0, input)
+        assertEquals(PhysicsConstants.ROTATION_SPEED, s1.ship.angle, 0.01f)
+    }
+
+    @Test fun `slider mode reaches target after enough frames`() {
+        // Sanity check: if we keep applying the input, the ship eventually arrives.
+        val s0 = baseState().copy(ship = baseState().ship.copy(angle = 0f))
+        val input = InputState(targetAngle = 45f)
+        var s = s0
+        repeat(100) { s = sut.update(s, input) }
+        assertEquals(45f, s.ship.angle, 0.01f)
+    }
 }

@@ -22,6 +22,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.reygnn.thrust.R
+import com.github.reygnn.thrust.data.ControlMode
+import com.github.reygnn.thrust.data.ThrustSide
 import com.github.reygnn.thrust.domain.engine.PhysicsConstants
 import com.github.reygnn.thrust.domain.model.*
 import com.github.reygnn.thrust.ui.theme.ThrustCyan
@@ -49,15 +51,14 @@ fun GameScreen(
         vm.navEvents.collect { onNavigateBack() }
     }
 
-    val gunEnabled by vm.playerGunEnabled.collectAsStateWithLifecycle()
+    val gunEnabled  by vm.playerGunEnabled.collectAsStateWithLifecycle()
+    val controlMode by vm.controlMode.collectAsStateWithLifecycle()
+    val thrustSide  by vm.thrustSide.collectAsStateWithLifecycle()
 
     Box(modifier = Modifier.fillMaxSize()) {
         GameCanvas(state = state)
-
         GameHud(state = state, modifier = Modifier.align(Alignment.TopStart))
 
-        // Pause-Button frei oben rechts – getrennt von der Steuerleiste,
-        // damit er sie nie überdeckt (auch nicht bei aktivierter Kanone).
         IconButton(
             onClick  = vm::togglePause,
             modifier = Modifier
@@ -71,14 +72,25 @@ fun GameScreen(
             )
         }
 
-        GameControls(
-            onRotateLeft     = vm::onRotateLeft,
-            onRotateRight    = vm::onRotateRight,
-            onThrust         = vm::onThrust,
-            onFire           = vm::onFire,
-            playerGunEnabled = gunEnabled,
-            modifier         = Modifier.align(Alignment.BottomCenter),
-        )
+        when (controlMode) {
+            ControlMode.BUTTONS -> GameControls(
+                onRotateLeft     = vm::onRotateLeft,
+                onRotateRight    = vm::onRotateRight,
+                onThrust         = vm::onThrust,
+                onFire           = vm::onFire,
+                playerGunEnabled = gunEnabled,
+                modifier         = Modifier.align(Alignment.BottomCenter),
+            )
+            ControlMode.WHEEL -> WheelControls(
+                shipAngle        = state.ship.angle,
+                onTargetAngle    = vm::onTargetAngleChange,
+                onThrust         = vm::onThrust,
+                onFire           = vm::onFireTriggered,
+                playerGunEnabled = gunEnabled,
+                thrustSide       = thrustSide,
+                modifier         = Modifier.align(Alignment.BottomCenter),
+            )
+        }
 
         when (val phase = state.phase) {
             is GamePhase.LevelComplete -> LevelCompleteOverlay(
@@ -100,7 +112,7 @@ fun GameScreen(
     }
 }
 
-// ── HUD ───────────────────────────────────────────────────────────────────────
+// ── HUD (unchanged) ───────────────────────────────────────────────────────────
 
 @Composable
 private fun GameHud(state: GameState, modifier: Modifier = Modifier) {
@@ -111,25 +123,21 @@ private fun GameHud(state: GameState, modifier: Modifier = Modifier) {
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        // Level-Name = Eigenname, nicht lokalisiert.
         Text(
             text  = state.levelConfig.name.uppercase(),
             style = MaterialTheme.typography.labelLarge,
             color = ThrustCyan,
         )
-
         Text(
             text  = stringResource(R.string.hud_score, state.score),
             style = MaterialTheme.typography.titleMedium,
             color = Color.White,
         )
-
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             repeat(state.lives.coerceAtLeast(0)) {
                 Text("▲", color = ThrustGreen, style = MaterialTheme.typography.bodyLarge)
             }
         }
-
         val fuelPct = (state.ship.fuel / PhysicsConstants.INITIAL_FUEL).coerceIn(0f, 1f)
         val fuelColor = when {
             fuelPct > 0.40f -> ThrustGreen
@@ -137,11 +145,9 @@ private fun GameHud(state: GameState, modifier: Modifier = Modifier) {
             else            -> ThrustRed
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text  = stringResource(R.string.hud_fuel),
+            Text(stringResource(R.string.hud_fuel),
                 style = MaterialTheme.typography.labelLarge,
-                color = Color.White.copy(alpha = 0.7f),
-            )
+                color = Color.White.copy(alpha = 0.7f))
             LinearProgressIndicator(
                 progress    = { fuelPct },
                 modifier    = Modifier.width(90.dp).height(8.dp),
@@ -149,14 +155,12 @@ private fun GameHud(state: GameState, modifier: Modifier = Modifier) {
                 trackColor  = Color.White.copy(alpha = 0.15f),
             )
         }
-
         val (podText, podColor) = when {
             state.fuelPod.isDelivered -> stringResource(R.string.hud_pod_delivered) to ThrustGreen
             state.fuelPod.isPickedUp  -> stringResource(R.string.hud_pod_picked)    to ThrustGold
             else                      -> stringResource(R.string.hud_pod_idle)      to Color.White.copy(alpha = 0.5f)
         }
         Text(podText, style = MaterialTheme.typography.labelLarge, color = podColor)
-
         if (!state.ship.isAlive && state.ship.respawnTimer > 0) {
             val secs = "%.1f".format(state.ship.respawnTimer / 60f)
             Text(
@@ -168,7 +172,7 @@ private fun GameHud(state: GameState, modifier: Modifier = Modifier) {
     }
 }
 
-// ── Steuerung ─────────────────────────────────────────────────────────────────
+// ── Buttons-Steuerung (unverändert) ──────────────────────────────────────────
 
 @Composable
 private fun GameControls(
@@ -187,21 +191,88 @@ private fun GameControls(
         verticalAlignment     = Alignment.CenterVertically,
     ) {
         ControlButton(label = "◄", size = 72, onPress = onRotateLeft)
-
-        ControlButton(
-            label   = stringResource(R.string.control_thrust_label),
-            size    = 88,
-            onPress = onThrust,
-        )
-
+        ControlButton(label = stringResource(R.string.control_thrust_label), size = 88, onPress = onThrust)
         ControlButton(label = "►", size = 72, onPress = onRotateRight)
-
         if (playerGunEnabled) {
             ControlButton(
                 label     = stringResource(R.string.control_fire_label),
                 size      = 72,
                 tintColor = Color(0xFFFF5252),
                 onPress   = onFire,
+            )
+        }
+    }
+}
+
+// ── Drehrad-Steuerung ────────────────────────────────────────────────────────
+
+@Composable
+private fun WheelControls(
+    shipAngle:        Float,
+    onTargetAngle:    (Float?) -> Unit,
+    onThrust:         (Boolean) -> Unit,
+    onFire:           () -> Unit,
+    playerGunEnabled: Boolean,
+    thrustSide:       ThrustSide,
+    modifier:         Modifier = Modifier,
+) {
+    // The wheel UI maintains its own target angle (continuous), separate from the
+    // ship's actual angle (which lags behind due to ROTATION_SPEED limit).
+    var targetAngle by remember { mutableFloatStateOf(shipAngle) }
+
+    // Keep the visible rocket on the wheel synced to whichever is more useful:
+    // — If the user is dragging, show their target.
+    // — If not, snap visually to the actual ship angle so the wheel doesn't drift.
+    // The simplest correct behavior: always show the user-controlled target, and
+    // re-center it to the ship angle when control mode is entered/exited (we just
+    // rely on initial state for now).
+
+    LaunchedEffect(Unit) {
+        // Inform the engine that we are in slider mode from the start.
+        onTargetAngle(targetAngle)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            // Leaving wheel mode: clear the engine target so button mode could resume cleanly.
+            onTargetAngle(null)
+        }
+    }
+
+    Row(
+        modifier              = modifier
+            .fillMaxWidth()
+            .padding(bottom = 20.dp, start = 16.dp, end = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment     = Alignment.Bottom,
+    ) {
+        if (thrustSide == ThrustSide.LEFT) {
+            ControlButton(
+                label   = stringResource(R.string.control_thrust_label),
+                size    = 88,
+                onPress = onThrust,
+            )
+            RotationWheel(
+                angleDegrees  = targetAngle,
+                onAngleChange = { newAngle ->
+                    targetAngle = newAngle
+                    onTargetAngle(newAngle)
+                },
+                onFire        = { if (playerGunEnabled) onFire() },
+            )
+        } else {
+            RotationWheel(
+                angleDegrees  = targetAngle,
+                onAngleChange = { newAngle ->
+                    targetAngle = newAngle
+                    onTargetAngle(newAngle)
+                },
+                onFire        = { if (playerGunEnabled) onFire() },
+            )
+            ControlButton(
+                label   = stringResource(R.string.control_thrust_label),
+                size    = 88,
+                onPress = onThrust,
             )
         }
     }
@@ -240,7 +311,7 @@ private fun ControlButton(
     }
 }
 
-// ── Overlays ─────────────────────────────────────────────────────────────────
+// ── Overlays (unverändert) ───────────────────────────────────────────────────
 
 @Composable
 private fun LevelCompleteOverlay(score: Int, levelName: String, onNext: () -> Unit) {
@@ -257,17 +328,9 @@ private fun LevelCompleteOverlay(score: Int, levelName: String, onNext: () -> Un
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text(
-                    text  = stringResource(R.string.level_complete_title),
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = ThrustGreen,
-                )
-                // Eigenname.
+                Text(stringResource(R.string.level_complete_title), style = MaterialTheme.typography.headlineMedium, color = ThrustGreen)
                 Text(levelName, style = MaterialTheme.typography.titleLarge, color = ThrustCyan)
-                Text(
-                    text  = stringResource(R.string.level_complete_score, score),
-                    style = MaterialTheme.typography.headlineMedium,
-                )
+                Text(stringResource(R.string.level_complete_score, score), style = MaterialTheme.typography.headlineMedium)
                 Button(onClick = onNext, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.level_complete_next))
                 }
@@ -291,22 +354,11 @@ private fun GameOverOverlay(score: Int, onQuit: () -> Unit, onRetry: () -> Unit)
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text(
-                    text  = stringResource(R.string.game_over_title),
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = ThrustRed,
-                )
-                Text(
-                    text  = stringResource(R.string.game_over_final_score, score),
-                    style = MaterialTheme.typography.headlineMedium,
-                )
+                Text(stringResource(R.string.game_over_title), style = MaterialTheme.typography.headlineMedium, color = ThrustRed)
+                Text(stringResource(R.string.game_over_final_score, score), style = MaterialTheme.typography.headlineMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = onQuit, modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.game_over_menu))
-                    }
-                    Button(onClick = onRetry, modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.game_over_retry))
-                    }
+                    OutlinedButton(onClick = onQuit, modifier = Modifier.weight(1f))  { Text(stringResource(R.string.game_over_menu)) }
+                    Button(onClick = onRetry, modifier = Modifier.weight(1f))         { Text(stringResource(R.string.game_over_retry)) }
                 }
             }
         }
@@ -326,12 +378,8 @@ private fun PausedOverlay(onResume: () -> Unit, onQuit: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Text(stringResource(R.string.pause_title), style = MaterialTheme.typography.headlineLarge)
-                Button(onClick = onResume, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.pause_resume))
-                }
-                OutlinedButton(onClick = onQuit, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.pause_quit_to_menu))
-                }
+                Button(onClick = onResume, modifier = Modifier.fillMaxWidth())   { Text(stringResource(R.string.pause_resume)) }
+                OutlinedButton(onClick = onQuit, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.pause_quit_to_menu)) }
             }
         }
     }

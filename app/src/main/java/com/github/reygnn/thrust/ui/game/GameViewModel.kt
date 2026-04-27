@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.github.reygnn.thrust.ThrustApplication
+import com.github.reygnn.thrust.data.ControlMode
 import com.github.reygnn.thrust.data.HighScoreRepository
 import com.github.reygnn.thrust.data.SettingsRepository
+import com.github.reygnn.thrust.data.ThrustSide
 import com.github.reygnn.thrust.domain.engine.PhysicsConstants
 import com.github.reygnn.thrust.domain.engine.PhysicsEngine
 import com.github.reygnn.thrust.domain.level.LevelRepository
@@ -27,13 +29,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-// ── Navigation-Events ─────────────────────────────────────────────────────────
-
 sealed interface NavEvent {
     data object BackToMenu : NavEvent
 }
-
-// ── ViewModel ─────────────────────────────────────────────────────────────────
 
 class GameViewModel(
     private val physicsEngine: PhysicsEngine,
@@ -42,9 +40,7 @@ class GameViewModel(
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(
-        GameState.initial(levelRepository.getLevel(1))
-    )
+    private val _state = MutableStateFlow(GameState.initial(levelRepository.getLevel(1)))
     val state: StateFlow<GameState> = _state.asStateFlow()
 
     private val _navEvents = MutableSharedFlow<NavEvent>(extraBufferCapacity = 1)
@@ -54,9 +50,14 @@ class GameViewModel(
 
     private var gameLoopJob: Job? = null
 
-    /** Gespiegelt aus den Settings – wird pro Frame ans PhysicsEngine übergeben. */
     val playerGunEnabled: StateFlow<Boolean> = settingsRepository.playerGunEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val controlMode: StateFlow<ControlMode> = settingsRepository.controlMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ControlMode.BUTTONS)
+
+    val thrustSide: StateFlow<ThrustSide> = settingsRepository.thrustSide
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThrustSide.RIGHT)
 
     init {
         startLoop()
@@ -64,17 +65,30 @@ class GameViewModel(
 
     // ── Input-API ─────────────────────────────────────────────────────────────
     //
-    // Wichtig: Alle Input-Setter aktualisieren _input über `update { it.copy(...) }`,
-    // damit sie sich nicht gegenseitig überschreiben (z.B. Schub darf "shoot" nicht
-    // zurücksetzen). Es gibt bewusst KEIN setInput(InputState) mehr – das hatte in
-    // der UI dazu geführt, dass FIRE während gleichzeitiger Rotation/Schub-Eingabe
-    // stillschweigend deaktiviert wurde.
+    // Each setter uses _input.update { it.copy(...) } so concurrent inputs
+    // (e.g. fire while thrusting) don't overwrite each other.
 
     fun onRotateLeft(pressed: Boolean)  { _input.update { it.copy(rotateLeft  = pressed) } }
     fun onRotateRight(pressed: Boolean) { _input.update { it.copy(rotateRight = pressed) } }
     fun onThrust(pressed: Boolean)      { _input.update { it.copy(thrust      = pressed) } }
-    /** FIRE: schießt von der Raketenspitze in Blickrichtung. */
     fun onFire(pressed: Boolean)        { _input.update { it.copy(shoot       = pressed) } }
+
+    /**
+     * Wheel-mode rotation. Setting a non-null target angle puts the engine
+     * into slider-mode rotation; setting null reverts to button-mode.
+     */
+    fun onTargetAngleChange(angle: Float?) { _input.update { it.copy(targetAngle = angle) } }
+
+    /** One-shot fire trigger (used by wheel double-tap). */
+    fun onFireTriggered() {
+        _input.update { it.copy(shoot = true) }
+        viewModelScope.launch {
+            // Hold "shoot=true" for one frame, then release. The engine consumes
+            // input.shoot to spawn one bullet (subject to FIRE_COOLDOWN_FRAMES).
+            delay(PhysicsConstants.FRAME_DELAY_MS + 1)
+            _input.update { it.copy(shoot = false) }
+        }
+    }
 
     // ── Spielfluss ────────────────────────────────────────────────────────────
 
@@ -89,20 +103,11 @@ class GameViewModel(
         }
     }
 
-    /**
-     * Wird aufgerufen, wenn der Spieler im LevelComplete-Dialog "Weiter" drückt.
-     *
-     * Persistiert den Highscore für das gerade abgeschlossene Level (egal ob es das
-     * letzte Level war) und startet entweder das nächste Level oder navigiert zurück
-     * ins Menü, falls das Spiel komplett durchgespielt wurde.
-     */
     fun advanceToNextLevel() {
         val current = _state.value
-        // Highscore für das gerade abgeschlossene Level immer speichern.
         viewModelScope.launch {
             highScoreRepository.updateHighScore(current.currentLevel, current.score)
         }
-
         val nextId = current.currentLevel + 1
         if (nextId > levelRepository.totalLevels) {
             _navEvents.tryEmit(NavEvent.BackToMenu)
@@ -116,15 +121,7 @@ class GameViewModel(
         }
     }
 
-    /**
-     * Wird aufgerufen, wenn der Spieler im GameOver-Dialog bestätigt.
-     *
-     * Der Highscore wurde bereits beim Übergang in [GamePhase.GameOver] in der
-     * Game-Loop gespeichert – hier nur noch zurück ins Menü navigieren.
-     */
-    fun onGameOverConfirmed() {
-        _navEvents.tryEmit(NavEvent.BackToMenu)
-    }
+    fun onGameOverConfirmed() { _navEvents.tryEmit(NavEvent.BackToMenu) }
 
     fun restartLevel() {
         _state.value = GameState.initial(_state.value.levelConfig)
@@ -172,9 +169,6 @@ class GameViewModel(
                 _state.value = next
 
                 if (next.phase != GamePhase.Playing) {
-                    // GameOver: Highscore eagerly persistieren – hier ist der Score final.
-                    // LevelComplete wird in advanceToNextLevel() gespeichert (erst beim
-                    // Weitergehen, da der Score während des nächsten Levels noch wachsen kann).
                     if (next.phase == GamePhase.GameOver) {
                         highScoreRepository.updateHighScore(next.currentLevel, next.score)
                     }
@@ -188,8 +182,6 @@ class GameViewModel(
         super.onCleared()
         gameLoopJob?.cancel()
     }
-
-    // ── Factory ───────────────────────────────────────────────────────────────
 
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {

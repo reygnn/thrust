@@ -56,4 +56,15 @@
     <string name="game_over_menu">Menü</string>
     <string name="game_over_retry">RETRY</string>
 
+<string name="options_section_controls">Steuerung</string>
+
+<string name="options_control_mode">Steuerungsmodus</string>
+<string name="options_control_mode_desc">Klassische Buttons oder Drehrad-Steuerung wählen.</string>
+<string name="options_control_mode_buttons">Buttons</string>
+<string name="options_control_mode_wheel">Drehrad</string>
+
+<string name="options_thrust_side">Schub-Position</string>
+<string name="options_thrust_side_desc">Seite des Bildschirms für den Schub-Button (nur im Drehrad-Modus).</string>
+<string name="options_thrust_side_left">Links</string>
+<string name="options_thrust_side_right">Rechts</string>
 </resources>

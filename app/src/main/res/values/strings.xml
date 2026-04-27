@@ -55,5 +55,18 @@
     <string name="game_over_final_score">Final Score: %1$d</string>
     <string name="game_over_menu">Menu</string>
     <string name="game_over_retry">RETRY</string>
+    
+    <string name="options_section_controls">Controls</string>
+ 
+<string name="options_control_mode">Control mode</string>
+<string name="options_control_mode_desc">Choose between classic buttons or a rotation wheel.</string>
+<string name="options_control_mode_buttons">Buttons</string>
+<string name="options_control_mode_wheel">Wheel</string>
+ 
+<string name="options_thrust_side">Thrust position</string>
+<string name="options_thrust_side_desc">Side of the screen for the thrust button (wheel mode only).</string>
+<string name="options_thrust_side_left">Left</string>
+<string name="options_thrust_side_right">Right</string>
+
 
 </resources>
