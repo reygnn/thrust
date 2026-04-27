@@ -9,6 +9,7 @@ import com.github.reygnn.thrust.ThrustApplication
 import com.github.reygnn.thrust.data.ControlMode
 import com.github.reygnn.thrust.data.SettingsRepository
 import com.github.reygnn.thrust.data.ThrustSide
+import com.github.reygnn.thrust.data.WheelSize
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -27,6 +28,9 @@ class OptionsViewModel(
     val thrustSide: StateFlow<ThrustSide> = settingsRepository.thrustSide
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThrustSide.RIGHT)
 
+    val wheelSize: StateFlow<WheelSize> = settingsRepository.wheelSize
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WheelSize.MEDIUM)
+
     fun togglePlayerGun(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setPlayerGunEnabled(enabled) }
     }
@@ -37,6 +41,10 @@ class OptionsViewModel(
 
     fun setThrustSide(side: ThrustSide) {
         viewModelScope.launch { settingsRepository.setThrustSide(side) }
+    }
+
+    fun setWheelSize(size: WheelSize) {
+        viewModelScope.launch { settingsRepository.setWheelSize(size) }
     }
 
     companion object {

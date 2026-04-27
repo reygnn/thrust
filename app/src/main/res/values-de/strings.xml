@@ -67,4 +67,12 @@
 <string name="options_thrust_side_desc">Seite des Bildschirms für den Schub-Button (nur im Drehrad-Modus).</string>
 <string name="options_thrust_side_left">Links</string>
 <string name="options_thrust_side_right">Rechts</string>
+
+<string name="options_wheel_size">Drehrad-Größe</string>
+<string name="options_wheel_size_desc">Durchmesser des Drehrads. Größer ist leichter zu bedienen, verdeckt aber mehr vom Spielfeld.</string>
+<string name="options_wheel_size_small">S</string>
+<string name="options_wheel_size_medium">M</string>
+<string name="options_wheel_size_large">L</string>
+<string name="options_wheel_size_xl">XL</string>
+
 </resources>

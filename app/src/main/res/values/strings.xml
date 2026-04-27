@@ -68,5 +68,13 @@
 <string name="options_thrust_side_left">Left</string>
 <string name="options_thrust_side_right">Right</string>
 
+<string name="options_wheel_size">Wheel size</string>
+<string name="options_wheel_size_desc">Diameter of the rotation wheel. Larger is easier to rotate but covers more of the screen.</string>
+<string name="options_wheel_size_small">S</string>
+<string name="options_wheel_size_medium">M</string>
+<string name="options_wheel_size_large">L</string>
+<string name="options_wheel_size_xl">XL</string>
+
+
 
 </resources>

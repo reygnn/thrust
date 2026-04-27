@@ -18,11 +18,16 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.atan2
 
 /**
- * 144dp rotary wheel for ship steering.
+ * Rotary wheel for ship steering.
+ *
+ * The wheel diameter is a parameter so the UI layer can adapt it to the
+ * user's preference (Settings → Wheel size). Internal layout uses the same
+ * diameter for both the touch hit area and the canvas.
  *
  * Behavior:
  * - Touch the wheel to start a drag. The angle from the wheel's center to the
@@ -31,32 +36,17 @@ import kotlin.math.atan2
  * - Drag input is RELATIVE: starting position doesn't change the angle —
  *   only rotation around the wheel's center does.
  * - Releasing leaves the angle as-is (no spring-back).
- * - Double-tap fires (only when the previous touch has lifted; not detectable
- *   while a drag is in progress).
+ * - Double-tap fires (only when the previous touch has lifted).
  *
- * The visible rocket symbol points in the current target angle direction.
- * 0° = up, positive = clockwise (matches the engine's coordinate system).
- *
- * Implementation notes:
- *
- * 1. The current angle is held as **internal state**, not derived from a parameter.
- *    Earlier versions read the angle from a parameter inside the pointerInput
- *    block, which captured a stale value due to closure semantics — each drag
- *    delta was added to the same starting angle, causing the rotation to "stutter"
- *    around the initial value instead of accumulating. State must live where the
- *    pointer handler reads it.
- *
- * 2. [initialAngle] seeds the internal state on first composition only. Later
- *    changes to the parameter are intentionally NOT reflected, because the wheel
- *    is the source of truth while the user is interacting with it.
- *
- * 3. The double-tap detection uses dp→px conversion via [Density.toPx]; the
- *    PointerInputScope provides a Density implementation, but you must call
- *    `30.dp.toPx()` inside that scope, not access a `density` property directly.
+ * Implementation note: the current angle is held as **internal state**, not
+ * read from a parameter inside the pointerInput block. The earlier version
+ * captured a stale parameter value from its closure, causing the rotation
+ * to "stutter" around the initial value instead of accumulating.
  */
 @Composable
 fun RotationWheel(
     initialAngle: Float,
+    diameter: Dp,
     onAngleChange: (Float) -> Unit,
     onFire: () -> Unit,
     modifier: Modifier = Modifier,
@@ -64,13 +54,11 @@ fun RotationWheel(
     val doubleTapWindowMs  = 350L
     val doubleTapMaxDistDp = 30.dp
 
-    // The wheel's current target angle. Held internally so the pointer handler
-    // always reads the up-to-date value (see implementation note 1 above).
     var currentAngle by remember { mutableFloatStateOf(initialAngle) }
 
     Box(
         modifier = modifier
-            .size(144.dp)
+            .size(diameter)
             .clip(CircleShape)
             .background(Color.White.copy(alpha = 0.08f))
             .border(1.5.dp, Color.White.copy(alpha = 0.30f), CircleShape)
@@ -82,8 +70,8 @@ fun RotationWheel(
                 var lastTapPos: Offset? = null
 
                 awaitEachGesture {
-                    val down       = awaitFirstDown(requireUnconsumed = false)
-                    val downPos    = down.position
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val downPos = down.position
                     var totalMovement = 0f
                     var dragInProgress = false
 
@@ -93,11 +81,10 @@ fun RotationWheel(
                     )
 
                     while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Main)
+                        val event  = awaitPointerEvent(PointerEventPass.Main)
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
 
                         if (!change.pressed) {
-                            // Pointer up — evaluate tap vs. double-tap if it wasn't a drag.
                             val upTimeMs = System.currentTimeMillis()
                             change.consume()
 
@@ -135,7 +122,6 @@ fun RotationWheel(
                             if (delta >  180f) delta -= 360f
                             if (delta < -180f) delta += 360f
 
-                            // Accumulate onto the up-to-date internal state, not the parameter.
                             var next = currentAngle + delta
                             if (next >  180f) next -= 360f
                             if (next < -180f) next += 360f
@@ -150,7 +136,7 @@ fun RotationWheel(
                 }
             },
     ) {
-        Canvas(modifier = Modifier.size(144.dp)) {
+        Canvas(modifier = Modifier.size(diameter)) {
             val cx = size.width / 2f
             val cy = size.height / 2f
             // Canvas 0° points right; engine 0° points up. So rotate by angle - 90.
@@ -158,7 +144,7 @@ fun RotationWheel(
                 val rocketLen = size.width * 0.30f
                 val rocketWid = size.width * 0.10f
                 val path = Path().apply {
-                    moveTo(cx + rocketLen, cy)                              // tip
+                    moveTo(cx + rocketLen, cy)
                     lineTo(cx - rocketLen * 0.5f, cy - rocketWid)
                     lineTo(cx - rocketLen * 0.3f, cy)
                     lineTo(cx - rocketLen * 0.5f, cy + rocketWid)

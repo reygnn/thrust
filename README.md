@@ -20,17 +20,32 @@ Gravity is always working against you. Fuel is finite. Turrets don't miss.
 
 ## Controls
 
-All controls are hold-to-press buttons at the bottom of the screen.
+Two control schemes are available — pick the one that suits you in the Options menu.
+
+### Buttons (default)
+
+Hold-to-press buttons at the bottom of the screen.
 
 | Button | Action |
 |--------|--------|
 | **◄** | Rotate left |
-| **▲ SCHUB** | Thrust — accelerates in the direction the nose is pointing |
+| **▲ THRUST** | Thrust — accelerates in the direction the nose is pointing |
 | **►** | Rotate right |
 | **🔥 FIRE** | Fire cannon from the rocket tip *(optional, see Options)* |
 | **⏸** | Pause / Resume |
 
 Rotation and thrust can be combined simultaneously. To aim the cannon at a turret, rotate your rocket until the nose points at the target, then fire.
+
+### Wheel
+
+A rotary wheel for steering and a thrust button. The wheel uses **relative drag** — touch anywhere on the wheel and rotate your finger; the rocket follows the rotation, not the absolute touch position.
+
+- **Rotate finger on wheel** → ship rotates toward the target angle (subject to the same rotation-rate limit as button mode, so the skill element of rotational inertia is preserved).
+- **Hold thrust button** → applies thrust.
+- **Double-tap on the wheel** (release first, then two quick taps at the same spot) → fires the cannon.
+- **Pause button** is always at the top right.
+
+Wheel diameter is configurable (S / M / L / XL). Thrust button position can be set to the left or right side for left/right-handed players.
 
 ---
 
@@ -63,7 +78,7 @@ The ship simulation runs at 60 fps (16 ms frame delay) and obeys the following r
 - **Max speed** is capped at 7 units/frame in any direction.
 - **The rope** is a pendulum — the pod swings and builds momentum. Sudden direction changes will throw it wide.
 - **Landing** requires vertical speed ≤ 2.5 and nose angle ≤ 20° from vertical. Anything outside those tolerances is a crash.
-- **Turrets** track the ship and fire every N frames depending on the level. Their bullets are removed on impact with terrain or the ship.
+- **Turrets** track the ship and fire on a per-turret cooldown. Their bullets are removed on impact with terrain or the ship. Turrets sharing the same fire period are deterministically staggered so they don't lock-step fire on the same frame.
 
 ---
 
@@ -71,11 +86,17 @@ The ship simulation runs at 60 fps (16 ms frame delay) and obeys the following r
 
 Open **Options** from the main menu.
 
+**Control mode** — Buttons or Wheel (default: Buttons). See the Controls section above.
+
+**Thrust position** *(wheel mode only)* — Left or Right side of the screen.
+
+**Wheel size** *(wheel mode only)* — S (120 dp), M (144 dp, default), L (180 dp), or XL (220 dp).
+
 **Player Cannon** — disabled by default.
 
-When enabled, a **🔥 FIRE** button appears during gameplay. Shots are fired from the rocket tip in the direction the nose is pointing, with the ship's current velocity added for momentum. There is a ~290 ms cooldown between shots. Direct hits destroy turrets permanently for the rest of the level.
+When enabled, a **🔥 FIRE** button (or the wheel double-tap) becomes active during gameplay. Shots are fired from the rocket tip in the direction the nose is pointing, with the ship's current velocity added for momentum. There is a ~290 ms cooldown between shots. Direct hits destroy turrets permanently for the rest of the level. Recommended for Level 4.
 
-This option is saved automatically and persists between sessions.
+All options are saved automatically and persist between sessions.
 
 ---
 
@@ -106,7 +127,8 @@ com.github.reygnn.thrust
     ├── game/
     │   ├── GameViewModel           # Game loop, input, nav events
     │   ├── GameScreen              # Canvas + HUD + controls + overlays
-    │   └── GameCanvas              # DrawScope extensions for all game objects
+    │   ├── GameCanvas              # DrawScope extensions for all game objects
+    │   └── RotationWheel           # The rotary wheel composable
     ├── menu/         MenuScreen + MenuViewModel
     ├── highscore/    HighScoreScreen + HighScoreViewModel
     ├── options/      OptionsScreen + OptionsViewModel
@@ -118,6 +140,8 @@ com.github.reygnn.thrust
 
 - `PhysicsEngine.update()` is a pure function — no Android dependencies, fully unit-testable.
 - The game loop runs in `viewModelScope` using `delay(16L)`. No custom `Handler` or `Choreographer`.
+- The engine supports two rotation modes: button mode (discrete rotate-left/right inputs) and slider mode (a target angle that the engine works toward at the same per-frame rate). Both modes share the same rotation-speed limit, so wheel control is more *precise*, not faster.
+- The camera follows the ship with a vertical offset that keeps the rocket above the touch controls in both control modes.
 - Manual DI via `ThrustApplication` — `HighScoreRepository` and `SettingsRepository` are lazily initialized and passed into ViewModels through their `Factory`.
 - Navigation is handled by a single `NavHost`. The `GameViewModel` is scoped to its `NavBackStackEntry` so it survives recomposition but not back-stack popping.
 
@@ -128,9 +152,9 @@ com.github.reygnn.thrust
 | Library | Version | Purpose |
 |---------|---------|---------|
 | Kotlin | 2.2.21 | Language |
-| Compose BOM | 2026.03.01 | UI framework |
+| Compose BOM | 2026.04.01 | UI framework |
 | Material 3 | via BOM | Design system |
-| Navigation Compose | 2.9.7 | Screen routing |
+| Navigation Compose | 2.9.8 | Screen routing |
 | DataStore Preferences | 1.2.1 | Persistent settings & high scores |
 | Lifecycle / ViewModel | 2.10.0 | MVVM infrastructure |
 | JUnit 4 | 4.13.2 | Test runner |
@@ -162,17 +186,17 @@ The test suite covers the core game logic without any Android dependencies.
 
 | Suite | What it tests |
 |-------|--------------|
-| `PhysicsEngineTest` | Thrust direction, gravity, fuel depletion, respawn, turret fire |
+| `PhysicsEngineTest` | Thrust direction, gravity, fuel depletion, respawn, turret cadence (per-turret cooldown), slider-mode rotation |
 | `CollisionDetectorTest` | Circle/segment intersection, landing success/crash/none, bullet hits |
 | `GameViewModelTest` | Game loop, input handling, pause/resume, nav events, high score saving |
 | `HighScoreRepositoryTest` | Score persistence, update-only-if-higher logic |
 
-All tests use `MainDispatcherRule` with `UnconfinedTestDispatcher` — no separate `TestScope` or `StandardTestDispatcher` is created anywhere in the test suite.
+All tests use `MainDispatcherRule` with `UnconfinedTestDispatcher` and pass it explicitly to `runTest(mainDispatcherRule.dispatcher) { … }` — there is no separate `TestScope` or `StandardTestDispatcher` anywhere in the suite.
 
 ---
 
 ## Credits
 
-Original game design by **Rob Hubbard** (music) and **Tony Crowther** (code), published by **Firebird Software**, 1986.
+Original game design by **Tony Crowther** (code) with music by **Rob Hubbard**, published by **Firebird Software**, 1986.
 
 This is an unofficial fan remake for educational and personal use. No commercial use intended.

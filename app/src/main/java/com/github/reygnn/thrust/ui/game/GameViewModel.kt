@@ -10,6 +10,7 @@ import com.github.reygnn.thrust.data.ControlMode
 import com.github.reygnn.thrust.data.HighScoreRepository
 import com.github.reygnn.thrust.data.SettingsRepository
 import com.github.reygnn.thrust.data.ThrustSide
+import com.github.reygnn.thrust.data.WheelSize
 import com.github.reygnn.thrust.domain.engine.PhysicsConstants
 import com.github.reygnn.thrust.domain.engine.PhysicsEngine
 import com.github.reygnn.thrust.domain.level.LevelRepository
@@ -59,38 +60,27 @@ class GameViewModel(
     val thrustSide: StateFlow<ThrustSide> = settingsRepository.thrustSide
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThrustSide.RIGHT)
 
+    val wheelSize: StateFlow<WheelSize> = settingsRepository.wheelSize
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WheelSize.MEDIUM)
+
     init {
         startLoop()
     }
-
-    // ── Input-API ─────────────────────────────────────────────────────────────
-    //
-    // Each setter uses _input.update { it.copy(...) } so concurrent inputs
-    // (e.g. fire while thrusting) don't overwrite each other.
 
     fun onRotateLeft(pressed: Boolean)  { _input.update { it.copy(rotateLeft  = pressed) } }
     fun onRotateRight(pressed: Boolean) { _input.update { it.copy(rotateRight = pressed) } }
     fun onThrust(pressed: Boolean)      { _input.update { it.copy(thrust      = pressed) } }
     fun onFire(pressed: Boolean)        { _input.update { it.copy(shoot       = pressed) } }
 
-    /**
-     * Wheel-mode rotation. Setting a non-null target angle puts the engine
-     * into slider-mode rotation; setting null reverts to button-mode.
-     */
     fun onTargetAngleChange(angle: Float?) { _input.update { it.copy(targetAngle = angle) } }
 
-    /** One-shot fire trigger (used by wheel double-tap). */
     fun onFireTriggered() {
         _input.update { it.copy(shoot = true) }
         viewModelScope.launch {
-            // Hold "shoot=true" for one frame, then release. The engine consumes
-            // input.shoot to spawn one bullet (subject to FIRE_COOLDOWN_FRAMES).
             delay(PhysicsConstants.FRAME_DELAY_MS + 1)
             _input.update { it.copy(shoot = false) }
         }
     }
-
-    // ── Spielfluss ────────────────────────────────────────────────────────────
 
     fun togglePause() {
         val isPlaying = _state.value.phase == GamePhase.Playing
@@ -150,8 +140,6 @@ class GameViewModel(
     }
     fun onLevelCompleteConfirm() = advanceToNextLevel()
     fun onGameOverConfirm()      = onGameOverConfirmed()
-
-    // ── Game Loop ─────────────────────────────────────────────────────────────
 
     private fun startLoop() {
         gameLoopJob?.cancel()

@@ -6,6 +6,7 @@ import com.github.reygnn.thrust.data.ControlMode
 import com.github.reygnn.thrust.data.HighScoreRepository
 import com.github.reygnn.thrust.data.SettingsRepository
 import com.github.reygnn.thrust.data.ThrustSide
+import com.github.reygnn.thrust.data.WheelSize
 import com.github.reygnn.thrust.domain.engine.PhysicsConstants
 import com.github.reygnn.thrust.domain.engine.PhysicsEngine
 import com.github.reygnn.thrust.domain.level.LevelRepository
@@ -24,14 +25,6 @@ import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * Hinweis zum Dispatcher:
- * Alle [runTest]-Aufrufe übergeben explizit [MainDispatcherRule.dispatcher] –
- * andernfalls würde runTest seinen eigenen StandardTestDispatcher mit eigenem
- * Scheduler erzeugen, während die ViewModel-Coroutinen via Dispatchers.Main auf
- * dem Scheduler der Rule laufen. [advanceTimeBy] würde dann den Loop nicht
- * vorspulen. Siehe TESTING_CONVENTIONS.kt.
- */
 class GameViewModelTest {
 
     @get:Rule val mainDispatcherRule = MainDispatcherRule()
@@ -45,12 +38,13 @@ class GameViewModelTest {
         every { highScoreRepo.getHighScores() } returns flowOf(emptyMap())
         coEvery { highScoreRepo.updateHighScore(any(), any()) } just Runs
         every { settingsRepo.playerGunEnabled } returns flowOf(false)
-        // Wheel-Steuerung: SettingsRepository wurde um zwei Felder erweitert.
-        // Beide werden im ViewModel-Konstruktor sofort via stateIn() konsumiert,
-        // also müssen sie hier gestubbt sein – sonst wirft MockK beim Anlegen
-        // des ViewModels und ALLE Tests reißen gleichzeitig durch.
+        // SettingsRepository hat mehrere Felder, die im VM-Konstruktor sofort
+        // via stateIn() konsumiert werden. Alle müssen gestubbt sein, sonst
+        // wirft MockK beim Anlegen des ViewModels und ALLE Tests reißen
+        // gleichzeitig durch (haben wir schon einmal erlebt).
         every { settingsRepo.controlMode } returns flowOf(ControlMode.BUTTONS)
         every { settingsRepo.thrustSide }  returns flowOf(ThrustSide.RIGHT)
+        every { settingsRepo.wheelSize }   returns flowOf(WheelSize.MEDIUM)
     }
 
     private fun buildVm(engine: PhysicsEngine = physicsEngine) = GameViewModel(
@@ -225,8 +219,6 @@ class GameViewModelTest {
             vm.onLevelCompleteConfirm()
             advanceTimeBy(100)
 
-            // Beim Abschluss von Level 1 (currentLevel = 1) wird der Highscore gespeichert –
-            // unabhängig davon, ob es das letzte Level ist.
             coVerify { highScoreRepo.updateHighScore(1, any()) }
         }
 
@@ -235,8 +227,6 @@ class GameViewModelTest {
             stubRepo()
             val vm = buildVm()
 
-            // Zustand: noch keine GameOver-Phase erreicht (Loop hat nichts gespeichert).
-            // onGameOverConfirm() darf jetzt KEINEN Save mehr auslösen.
             vm.onGameOverConfirm()
             advanceTimeBy(100)
 

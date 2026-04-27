@@ -19,6 +19,7 @@ class SettingsRepositoryImpl(
     private val playerGunKey   = booleanPreferencesKey("player_gun_enabled")
     private val controlModeKey = stringPreferencesKey("control_mode")
     private val thrustSideKey  = stringPreferencesKey("thrust_side")
+    private val wheelSizeKey   = stringPreferencesKey("wheel_size")
 
     override val playerGunEnabled: Flow<Boolean> =
         context.thrustSettingsDataStore.data.map { it[playerGunKey] ?: false }
@@ -49,5 +50,17 @@ class SettingsRepositoryImpl(
 
     override suspend fun setThrustSide(side: ThrustSide) {
         context.thrustSettingsDataStore.edit { it[thrustSideKey] = side.name }
+    }
+
+    override val wheelSize: Flow<WheelSize> =
+        context.thrustSettingsDataStore.data.map { prefs ->
+            // Defensive parsing: unknown stored values fall back to MEDIUM.
+            // This is robust against typos AND against future enum-value removal.
+            val stored = prefs[wheelSizeKey]
+            WheelSize.entries.firstOrNull { it.name == stored } ?: WheelSize.MEDIUM
+        }
+
+    override suspend fun setWheelSize(size: WheelSize) {
+        context.thrustSettingsDataStore.edit { it[wheelSizeKey] = size.name }
     }
 }

@@ -24,6 +24,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.reygnn.thrust.R
 import com.github.reygnn.thrust.data.ControlMode
 import com.github.reygnn.thrust.data.ThrustSide
+import com.github.reygnn.thrust.data.WheelSize
 import com.github.reygnn.thrust.domain.engine.PhysicsConstants
 import com.github.reygnn.thrust.domain.model.*
 import com.github.reygnn.thrust.ui.theme.ThrustCyan
@@ -54,6 +55,7 @@ fun GameScreen(
     val gunEnabled  by vm.playerGunEnabled.collectAsStateWithLifecycle()
     val controlMode by vm.controlMode.collectAsStateWithLifecycle()
     val thrustSide  by vm.thrustSide.collectAsStateWithLifecycle()
+    val wheelSize   by vm.wheelSize.collectAsStateWithLifecycle()
 
     Box(modifier = Modifier.fillMaxSize()) {
         GameCanvas(state = state)
@@ -88,6 +90,7 @@ fun GameScreen(
                 onFire           = vm::onFireTriggered,
                 playerGunEnabled = gunEnabled,
                 thrustSide       = thrustSide,
+                wheelSize        = wheelSize,
                 modifier         = Modifier.align(Alignment.BottomCenter),
             )
         }
@@ -214,16 +217,11 @@ private fun WheelControls(
     onFire:           () -> Unit,
     playerGunEnabled: Boolean,
     thrustSide:       ThrustSide,
+    wheelSize:        WheelSize,
     modifier:         Modifier = Modifier,
 ) {
-    // Beim Eintritt in den Wheel-Modus den initialen Soll-Winkel an die Engine
-    // übergeben, beim Verlassen wieder auf null setzen (Engine-Pfad zu Buttons).
-    LaunchedEffect(Unit) {
-        onTargetAngle(initialAngle)
-    }
-    DisposableEffect(Unit) {
-        onDispose { onTargetAngle(null) }
-    }
+    LaunchedEffect(Unit) { onTargetAngle(initialAngle) }
+    DisposableEffect(Unit) { onDispose { onTargetAngle(null) } }
 
     Row(
         modifier              = modifier
@@ -240,12 +238,14 @@ private fun WheelControls(
             )
             RotationWheel(
                 initialAngle  = initialAngle,
+                diameter      = wheelSize.diameter,
                 onAngleChange = onTargetAngle,
                 onFire        = { if (playerGunEnabled) onFire() },
             )
         } else {
             RotationWheel(
                 initialAngle  = initialAngle,
+                diameter      = wheelSize.diameter,
                 onAngleChange = onTargetAngle,
                 onFire        = { if (playerGunEnabled) onFire() },
             )

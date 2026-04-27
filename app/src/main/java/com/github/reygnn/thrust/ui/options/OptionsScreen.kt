@@ -15,6 +15,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.reygnn.thrust.R
 import com.github.reygnn.thrust.data.ControlMode
 import com.github.reygnn.thrust.data.ThrustSide
+import com.github.reygnn.thrust.data.WheelSize
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,6 +26,7 @@ fun OptionsScreen(
     val gunEnabled  by vm.playerGunEnabled.collectAsStateWithLifecycle()
     val controlMode by vm.controlMode.collectAsStateWithLifecycle()
     val thrustSide  by vm.thrustSide.collectAsStateWithLifecycle()
+    val wheelSize   by vm.wheelSize.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -62,7 +64,7 @@ fun OptionsScreen(
             )
             HorizontalDivider()
 
-            // Steuerungsmodus: Buttons / Drehrad
+            // Steuerungsmodus
             Column(modifier = Modifier.padding(vertical = 8.dp)) {
                 Text(
                     text  = stringResource(R.string.options_control_mode),
@@ -90,7 +92,7 @@ fun OptionsScreen(
                 }
             }
 
-            // Schub-Position (nur sichtbar im Drehrad-Modus)
+            // Schub-Position (nur Wheel-Modus)
             if (controlMode == ControlMode.WHEEL) {
                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
                     Text(
@@ -114,6 +116,46 @@ fun OptionsScreen(
                             selected = thrustSide == ThrustSide.RIGHT,
                             label    = stringResource(R.string.options_thrust_side_right),
                             onSelect = { vm.setThrustSide(ThrustSide.RIGHT) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+
+                // Drehrad-Größe (nur Wheel-Modus)
+                Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                    Text(
+                        text  = stringResource(R.string.options_wheel_size),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        text  = stringResource(R.string.options_wheel_size_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Row {
+                        RadioRow(
+                            selected = wheelSize == WheelSize.SMALL,
+                            label    = stringResource(R.string.options_wheel_size_small),
+                            onSelect = { vm.setWheelSize(WheelSize.SMALL) },
+                            modifier = Modifier.weight(1f),
+                        )
+                        RadioRow(
+                            selected = wheelSize == WheelSize.MEDIUM,
+                            label    = stringResource(R.string.options_wheel_size_medium),
+                            onSelect = { vm.setWheelSize(WheelSize.MEDIUM) },
+                            modifier = Modifier.weight(1f),
+                        )
+                        RadioRow(
+                            selected = wheelSize == WheelSize.LARGE,
+                            label    = stringResource(R.string.options_wheel_size_large),
+                            onSelect = { vm.setWheelSize(WheelSize.LARGE) },
+                            modifier = Modifier.weight(1f),
+                        )
+                        RadioRow(
+                            selected = wheelSize == WheelSize.XL,
+                            label    = stringResource(R.string.options_wheel_size_xl),
+                            onSelect = { vm.setWheelSize(WheelSize.XL) },
                             modifier = Modifier.weight(1f),
                         )
                     }
