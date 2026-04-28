@@ -175,6 +175,19 @@ object LevelGenerator {
         return left + right
     }
 
+    /**
+     * Form einer Barriere — bestimmt wie die beiden Caps (Stalaktit-Unterseite,
+     * Stalagmit-Oberseite) zwischen xL und xR verlaufen. Pillars selbst bleiben
+     * vertikal.
+     *
+     * - [CLASSIC]: beide Caps horizontal — der ursprüngliche ⊓⊔-Look.
+     * - [SLANTED_DOWN] / [SLANTED_UP]: beide Caps neigen sich gleichsinnig,
+     *   die Lücke kippt wie ein schräger Tunnel.
+     * - [FUNNEL_RIGHT] / [FUNNEL_LEFT]: Caps neigen sich gegeneinander, die
+     *   Lücke verengt sich zu einer Seite hin (Trichter).
+     */
+    private enum class BarrierShape { CLASSIC, SLANTED_DOWN, SLANTED_UP, FUNNEL_RIGHT, FUNNEL_LEFT }
+
     private fun generateBarriers(
         rng: Random,
         count: Int,
@@ -184,6 +197,7 @@ object LevelGenerator {
         if (count <= 0 || xMax - xMin < 600f) return emptyList()
         val out = mutableListOf<TerrainSegment>()
         val slot = (xMax - xMin) / count
+        val shapes = BarrierShape.values()
         for (i in 0 until count) {
             val centerX = xMin + (i + 0.5f) * slot + (rng.nextFloat() - 0.5f) * slot * 0.3f
             val halfW   = 80f + rng.nextFloat() * 50f
@@ -194,14 +208,21 @@ object LevelGenerator {
             val gapMax  = (floorY - 200f - gapH).coerceAtLeast(gapMin)
             val gapTop  = gapMin + rng.nextFloat() * (gapMax - gapMin)
             val gapBot  = gapTop + gapH
-            // Stalaktit ⊓
-            out += seg(xL, ceilingY, xL, gapTop)
-            out += seg(xL, gapTop,  xR, gapTop)
-            out += seg(xR, gapTop,  xR, ceilingY)
-            // Stalagmit ⊔
-            out += seg(xL, floorY,  xL, gapBot)
-            out += seg(xL, gapBot,  xR, gapBot)
-            out += seg(xR, gapBot,  xR, floorY)
+
+            // Tilt-Stärke: 30 bis 90 Einheiten — genug um sichtbar zu sein, aber
+            // nie so viel dass die Lücke an einer Seite zu eng wird (Min-Höhe ~80).
+            val tilt   = 30f + rng.nextFloat() * 60f
+            val shape  = shapes[rng.nextInt(shapes.size)]
+            val (gtL, gtR, gbL, gbR) = capCorners(shape, gapTop, gapBot, tilt)
+
+            // Stalaktit (Cap kann schräg sein)
+            out += seg(xL, ceilingY, xL, gtL)
+            out += seg(xL, gtL,      xR, gtR)
+            out += seg(xR, gtR,      xR, ceilingY)
+            // Stalagmit (Cap kann schräg sein)
+            out += seg(xL, floorY,   xL, gbL)
+            out += seg(xL, gbL,      xR, gbR)
+            out += seg(xR, gbR,      xR, floorY)
         }
         return out
     }
@@ -227,4 +248,32 @@ object LevelGenerator {
 
     private fun seg(x1: Float, y1: Float, x2: Float, y2: Float) =
         TerrainSegment(Vector2(x1, y1), Vector2(x2, y2))
+
+    /**
+     * Liefert die vier y-Koordinaten der Cap-Endpunkte (Stalaktit links/rechts,
+     * Stalagmit links/rechts) für die gewählte [BarrierShape]. Y wächst nach
+     * unten — Stalaktit-Caps haben kleinere y, Stalagmit-Caps größere.
+     *
+     * Tilt wird in beide Richtungen halbiert um die durchschnittliche Lücken-
+     * Position bei (gapTop, gapBot) zu halten. So wandert die Lücke nicht je
+     * nach Shape nach oben/unten.
+     */
+    private fun capCorners(
+        shape: BarrierShape,
+        gapTop: Float, gapBot: Float,
+        tilt: Float,
+    ): CapCorners {
+        val half = tilt / 2f
+        return when (shape) {
+            BarrierShape.CLASSIC       -> CapCorners(gapTop,        gapTop,        gapBot,        gapBot)
+            BarrierShape.SLANTED_DOWN  -> CapCorners(gapTop - half, gapTop + half, gapBot - half, gapBot + half)
+            BarrierShape.SLANTED_UP    -> CapCorners(gapTop + half, gapTop - half, gapBot + half, gapBot - half)
+            // Funnel: Stalaktit-Cap und Stalagmit-Cap nähern sich zur engen Seite
+            // einander an. Lücken-Höhe an der engen Seite ≈ originalGap - tilt.
+            BarrierShape.FUNNEL_RIGHT  -> CapCorners(gapTop - half, gapTop + half, gapBot + half, gapBot - half)
+            BarrierShape.FUNNEL_LEFT   -> CapCorners(gapTop + half, gapTop - half, gapBot - half, gapBot + half)
+        }
+    }
+
+    private data class CapCorners(val gtL: Float, val gtR: Float, val gbL: Float, val gbR: Float)
 }
