@@ -28,6 +28,14 @@ class CollisionDetector {
     fun checkPodTerrain(pod: FuelPod, terrain: List<TerrainSegment>): Boolean =
         terrain.any { circleIntersectsSegment(pod.position, PhysicsConstants.POD_RADIUS, it.start, it.end) }
 
+    /**
+     * Liefert das erste Terrain-Segment, in das ein Kreis (z.B. Pod) hineinragt,
+     * sonst null. Für den Bounce-Code im PhysicsEngine — der braucht das konkrete
+     * Segment, um Normale und Reflexion zu bestimmen.
+     */
+    fun firstCollidingSegment(pos: Vector2, radius: Float, terrain: List<TerrainSegment>): TerrainSegment? =
+        terrain.firstOrNull { circleIntersectsSegment(pos, radius, it.start, it.end) }
+
     // ── Landing ──────────────────────────────────────────────────────────────
     sealed interface LandingResult {
         data object None    : LandingResult

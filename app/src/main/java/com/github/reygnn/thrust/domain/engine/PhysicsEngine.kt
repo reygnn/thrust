@@ -32,26 +32,44 @@ class PhysicsEngine(
         var pod = when {
             state.fuelPod.isDelivered  -> state.fuelPod
             state.fuelPod.isPickedUp   -> {
-                // Pod hängt am Seil. Erst Pendel-Update, dann auf Terrain prüfen —
-                // streift der Pod eine Wand, reißt das Seil und der Pod fällt.
+                // Pod hängt am Seil. Pendel-Update, dann auf Terrain prüfen.
+                // Leichte Berührung → Pod prallt ab und bleibt am Seil. Erst
+                // bei harter Kollision (impactSpeed > Schwelle) reißt das Seil.
                 val swung = updateRope(state.fuelPod, ship.position, state.levelConfig.gravity)
-                if (collisionDetector.checkPodTerrain(swung, state.levelConfig.terrain)) {
-                    ship = ship.copy(hasPod = false)
-                    swung.copy(isPickedUp = false, isFalling = true)
+                val hit = collisionDetector.firstCollidingSegment(swung.position, PhysicsConstants.POD_RADIUS, state.levelConfig.terrain)
+                if (hit != null) {
+                    val info = collisionInfo(swung.position, hit)
+                    val impact = -swung.velocity.dot(info.normal)
+                    val bounced = bouncePod(swung, info)
+                    if (impact > HARD_HIT_THRESHOLD) {
+                        ship = ship.copy(hasPod = false)
+                        bounced.copy(isPickedUp = false, isFalling = true)
+                    } else {
+                        bounced
+                    }
                 } else {
                     swung
                 }
             }
             state.fuelPod.isFalling -> {
-                // Frei fallender Pod: Schwerkraft anwenden, bei Terrain-Kontakt
-                // an Ort und Stelle liegen bleiben (kein Bouncing für jetzt).
+                // Frei fallender Pod unter Schwerkraft. Bei Terrain-Kontakt
+                // wird abgeprallt; sinkt die Energie unter die Settle-Schwelle,
+                // bleibt der Pod liegen. Höhere Fallhöhe → mehr Bounces (Damping
+                // 0.5 gibt typischerweise 2-3 Sprünge bei mittleren Fällen).
                 val newVel = state.fuelPod.velocity + Vector2(0f, state.levelConfig.gravity * 0.6f)
                 val newPos = state.fuelPod.position + newVel
-                val testPod = state.fuelPod.copy(position = newPos)
-                if (collisionDetector.checkPodTerrain(testPod, state.levelConfig.terrain)) {
-                    state.fuelPod.copy(velocity = Vector2.Zero, isFalling = false)
+                val movedPod = state.fuelPod.copy(position = newPos, velocity = newVel)
+                val hit = collisionDetector.firstCollidingSegment(movedPod.position, PhysicsConstants.POD_RADIUS, state.levelConfig.terrain)
+                if (hit != null) {
+                    val info = collisionInfo(movedPod.position, hit)
+                    val bounced = bouncePod(movedPod, info)
+                    if (bounced.velocity.length() < POD_SETTLE_THRESHOLD) {
+                        bounced.copy(velocity = Vector2.Zero, isFalling = false)
+                    } else {
+                        bounced
+                    }
                 } else {
-                    state.fuelPod.copy(position = newPos, velocity = newVel)
+                    movedPod
                 }
             }
             else -> state.fuelPod
@@ -259,6 +277,38 @@ class PhysicsEngine(
         return pod.copy(position = pos, velocity = vel)
     }
 
+    private data class CollisionInfo(val normal: Vector2, val closest: Vector2)
+
+    /**
+     * Berechnet die Kollisions-Normale (Vektor von der Wandoberfläche zum
+     * Kreis-Mittelpunkt) und den nächsten Punkt auf dem Segment.
+     */
+    private fun collisionInfo(pos: Vector2, hit: TerrainSegment): CollisionInfo {
+        val ab   = hit.end - hit.start
+        val ap   = pos - hit.start
+        val len2 = ab.dot(ab)
+        val t    = if (len2 == 0f) 0f else (ap.dot(ab) / len2).coerceIn(0f, 1f)
+        val closest = hit.start + ab * t
+        val toPod = pos - closest
+        val toLen = toPod.length()
+        // Fallback-Normale falls Pod-Position exakt auf dem Segment liegt.
+        val n = if (toLen > 0.001f) toPod * (1f / toLen) else Vector2(0f, -1f)
+        return CollisionInfo(n, closest)
+    }
+
+    /**
+     * Wendet eine elastische, gedämpfte Reflexion an einem Terrain-Segment an
+     * und schiebt den Pod aus der Wand heraus, damit das Frame nicht im selben
+     * Segment endet.
+     */
+    private fun bouncePod(pod: FuelPod, info: CollisionInfo): FuelPod {
+        val vDotN = pod.velocity.dot(info.normal)
+        val reflected = if (vDotN < 0f) pod.velocity - info.normal * (2f * vDotN) else pod.velocity
+        val damped = reflected * BOUNCE_DAMPING
+        val pushedOut = info.closest + info.normal * (PhysicsConstants.POD_RADIUS + 0.5f)
+        return pod.copy(position = pushedOut, velocity = damped)
+    }
+
     private fun fireTurrets(
         turrets: List<Turret>,
         shipPos: Vector2,
@@ -280,5 +330,19 @@ class PhysicsEngine(
             }
         }
         return updated to newBullets
+    }
+
+    companion object {
+        /**
+         * Geschwindigkeitsanteil entlang der Wandnormale, ab dem das Seil
+         * reißt. Darunter prallt der Pod nur ab und bleibt am Schiff. Bezug
+         * sind Schiff-typische Speeds (MAX_SPEED = 7); Pods am Seil haben
+         * meist deutlich darunter, harte Schwingen aber knacken die Schwelle.
+         */
+        private const val HARD_HIT_THRESHOLD = 3.5f
+        /** Energie-Verlust pro Bounce (50% behalten). */
+        private const val BOUNCE_DAMPING = 0.5f
+        /** |v| unter dem ein gefallener Pod als ruhend gilt. */
+        private const val POD_SETTLE_THRESHOLD = 0.8f
     }
 }
