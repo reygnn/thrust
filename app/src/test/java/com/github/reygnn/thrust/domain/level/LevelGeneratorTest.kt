@@ -90,6 +90,24 @@ class LevelGeneratorTest {
     }
 
     @Test
+    fun `pod stays clear of barrier zone in all difficulties except Pure Chaos`() {
+        val safe = Difficulty.values().filter { it != Difficulty.PURE_CHAOS }
+        safe.forEach { d ->
+            (0L..40L).forEach { seed ->
+                val cfg = LevelGenerator.generate(d, seed)
+                // Barrieren werden ab shipStart.x + 500 platziert. Der Pod muss links
+                // davon liegen, sonst könnte er in einer Stalaktit/Stalagmit-Tasche
+                // eingesperrt sein.
+                val barrierZoneStart = cfg.shipStart.x + 500f
+                assertTrue(
+                    "Pod x=${cfg.fuelPodPosition.x} ragt in Barrieren-Zone (>= $barrierZoneStart) für $d seed=$seed",
+                    cfg.fuelPodPosition.x < barrierZoneStart,
+                )
+            }
+        }
+    }
+
+    @Test
     fun `turret periods and speeds respect difficulty ranges`() {
         Difficulty.values().forEach { d ->
             (0L..20L).forEach { seed ->

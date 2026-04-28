@@ -45,8 +45,15 @@ object LevelGenerator {
         val padHalfWidth = difficulty.padHalfWidth
         val pad          = LandingPad(Vector2(padCenterX, floorY), padHalfWidth)
 
+        // Pod-x bleibt in allen Stufen außer Pure Chaos links von der Barrieren-Zone
+        // (xMin = shipStart.x + 500). Mit max-Offset 400 bleibt ein Sicherheitspuffer
+        // von ~100 Einheiten — ausreichend, damit der Pod nicht in einer Barriere
+        // eingeschlossen sein kann. Pure Chaos darf chaotisch bleiben (s. Disclaimer).
+        val podMaxOffset =
+            if (difficulty == Difficulty.PURE_CHAOS) w * 0.18f
+            else minOf(w * 0.18f, 400f)
         val pod = Vector2(
-            x = w * (0.10f + rng.nextFloat() * 0.18f),
+            x = w * 0.10f + rng.nextFloat() * podMaxOffset,
             y = floorY - h * (0.16f + rng.nextFloat() * 0.18f),
         )
 
