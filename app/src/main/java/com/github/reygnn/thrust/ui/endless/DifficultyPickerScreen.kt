@@ -29,9 +29,10 @@ import com.github.reygnn.thrust.ui.theme.ThrustRed
 
 @Composable
 fun DifficultyPickerScreen(
-    onPick: (Difficulty) -> Unit,
-    onBack: () -> Unit,
-    vm:     EndlessPickerViewModel = viewModel(factory = EndlessPickerViewModel.Factory),
+    onPick:         (Difficulty) -> Unit,
+    onShowFavorites: () -> Unit,
+    onBack:         () -> Unit,
+    vm:             EndlessPickerViewModel = viewModel(factory = EndlessPickerViewModel.Factory),
 ) {
     val streaks by vm.streaks.collectAsStateWithLifecycle()
 
@@ -67,6 +68,10 @@ fun DifficultyPickerScreen(
                         onClick    = { onPick(d) },
                     )
                 }
+            }
+
+            OutlinedButton(onClick = onShowFavorites) {
+                Text(stringResource(R.string.endless_favorites))
             }
         }
 

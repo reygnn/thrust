@@ -63,7 +63,10 @@ fun GameScreen(
     val wheelSize   by vm.wheelSize.collectAsStateWithLifecycle()
     val mode        by vm.mode.collectAsStateWithLifecycle()
     val streak      by vm.endlessStreak.collectAsStateWithLifecycle()
-    val isEndless   = mode is GameMode.Endless
+    val savedAlready by vm.currentSeedSaved.collectAsStateWithLifecycle()
+    val isEndless          = mode is GameMode.Endless
+    val isEndlessFavorite  = mode is GameMode.EndlessFavorite
+    val isAnyEndless       = isEndless || isEndlessFavorite
 
     Box(modifier = Modifier.fillMaxSize()) {
         GameCanvas(state = state)
@@ -109,19 +112,28 @@ fun GameScreen(
 
         when (val phase = state.phase) {
             is GamePhase.LevelComplete -> LevelCompleteOverlay(
-                score     = phase.score,
-                levelName = state.levelConfig.name,
-                onNext    = vm::advanceToNextLevel,
+                score        = phase.score,
+                levelName    = state.levelConfig.name,
+                onNext       = vm::advanceToNextLevel,
+                // In Favorite-Mode ist das Level ein One-Shot — der Button führt zurück.
+                nextLabelRes = if (isEndlessFavorite) R.string.level_complete_done else R.string.level_complete_next,
             )
             GamePhase.GameOver -> GameOverOverlay(
                 score   = state.score,
                 onQuit  = vm::onGameOverConfirmed,
-                onRetry = if (isEndless) vm::retryEndlessLevel else vm::restartLevel,
+                onRetry = if (isAnyEndless) vm::retryEndlessLevel else vm::restartLevel,
+                // "Next random" gibt es nur in Endless (regular). In Story und in Favorite-Mode kein Next.
                 onNext  = if (isEndless) vm::nextEndlessLevel else null,
             )
             GamePhase.Paused -> PausedOverlay(
-                onResume = vm::togglePause,
-                onQuit   = vm::onGameOverConfirmed,
+                onResume     = vm::togglePause,
+                onQuit       = vm::onGameOverConfirmed,
+                // Skip nur in regular Endless — in Favorite-Mode skipt man nichts (eine
+                // bewusst gewählte Karte überspringen wäre sinnfrei).
+                onSkip       = if (isEndless) vm::nextEndlessLevel else null,
+                // Save in beiden Endless-Varianten — ist im Favorite-Fall idempotent.
+                onSave       = if (isAnyEndless) vm::saveCurrentAsFavorite else null,
+                savedAlready = savedAlready,
             )
             else -> Unit
         }
@@ -129,7 +141,9 @@ fun GameScreen(
         // Pure-Chaos-Disclaimer: einmal pro VM-Lifetime ~4s sichtbar, dann ausgeblendet.
         // Wird nicht in eine var aus remember umgewandelt, weil der Trigger an
         // (mode is Pure Chaos) hängt — beim nicht-Endless-Spiel wird gar nichts gerendert.
-        if ((mode as? GameMode.Endless)?.difficulty == Difficulty.PURE_CHAOS) {
+        val chaosMode = (mode as? GameMode.Endless)?.difficulty == Difficulty.PURE_CHAOS ||
+                        (mode as? GameMode.EndlessFavorite)?.difficulty == Difficulty.PURE_CHAOS
+        if (chaosMode) {
             ChaosDisclaimer(modifier = Modifier.align(Alignment.TopCenter))
         }
     }
@@ -360,7 +374,12 @@ private fun ControlButton(
 // ── Overlays ─────────────────────────────────────────────────────────────────
 
 @Composable
-private fun LevelCompleteOverlay(score: Int, levelName: String, onNext: () -> Unit) {
+private fun LevelCompleteOverlay(
+    score: Int,
+    levelName: String,
+    onNext: () -> Unit,
+    nextLabelRes: Int = R.string.level_complete_next,
+) {
     Box(
         modifier         = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.72f)),
         contentAlignment = Alignment.Center,
@@ -378,7 +397,7 @@ private fun LevelCompleteOverlay(score: Int, levelName: String, onNext: () -> Un
                 Text(levelName, style = MaterialTheme.typography.titleLarge, color = ThrustCyan)
                 Text(stringResource(R.string.level_complete_score, score), style = MaterialTheme.typography.headlineMedium)
                 Button(onClick = onNext, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.level_complete_next))
+                    Text(stringResource(nextLabelRes))
                 }
             }
         }
@@ -420,7 +439,13 @@ private fun GameOverOverlay(
 }
 
 @Composable
-private fun PausedOverlay(onResume: () -> Unit, onQuit: () -> Unit) {
+private fun PausedOverlay(
+    onResume: () -> Unit,
+    onQuit:   () -> Unit,
+    onSkip:   (() -> Unit)? = null,
+    onSave:   (() -> Unit)? = null,
+    savedAlready: Boolean = false,
+) {
     Box(
         modifier         = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)),
         contentAlignment = Alignment.Center,
@@ -429,10 +454,24 @@ private fun PausedOverlay(onResume: () -> Unit, onQuit: () -> Unit) {
             Column(
                 modifier            = Modifier.padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(stringResource(R.string.pause_title), style = MaterialTheme.typography.headlineLarge)
                 Button(onClick = onResume, modifier = Modifier.fillMaxWidth())   { Text(stringResource(R.string.pause_resume)) }
+                if (onSave != null) {
+                    OutlinedButton(
+                        onClick  = onSave,
+                        enabled  = !savedAlready,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(if (savedAlready) R.string.endless_pause_saved else R.string.endless_pause_save))
+                    }
+                }
+                if (onSkip != null) {
+                    OutlinedButton(onClick = onSkip, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.endless_pause_skip))
+                    }
+                }
                 OutlinedButton(onClick = onQuit, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.pause_quit_to_menu)) }
             }
         }

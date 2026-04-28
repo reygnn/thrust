@@ -9,8 +9,12 @@ import com.github.reygnn.thrust.domain.level.Difficulty
  *   und persistiert HighScores pro Level-ID.
  * - [Endless] erzeugt prozedurale Level einer festen [Difficulty]; Tod mit
  *   Restleben bedeutet "neues Game mit selbem Level" (volles Reset, gleicher Seed).
+ * - [EndlessFavorite] spielt einen vom Spieler gespeicherten Seed nach. Streak
+ *   wird **nicht** gezählt (kein Level-Hopping zur Bestenliste); LevelComplete
+ *   führt direkt zurück ans Menü, GameOver-Overlay zeigt nur Menu/Retry.
  */
 sealed interface GameMode {
     data object Story : GameMode
     data class Endless(val difficulty: Difficulty) : GameMode
+    data class EndlessFavorite(val difficulty: Difficulty, val seed: Long) : GameMode
 }

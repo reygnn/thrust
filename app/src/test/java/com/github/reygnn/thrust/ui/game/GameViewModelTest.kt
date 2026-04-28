@@ -6,6 +6,8 @@ import com.github.reygnn.thrust.data.ControlMode
 import com.github.reygnn.thrust.data.HighScoreRepository
 import com.github.reygnn.thrust.data.SettingsRepository
 import com.github.reygnn.thrust.data.ThrustSide
+import com.github.reygnn.thrust.data.EndlessFavorite
+import com.github.reygnn.thrust.data.EndlessFavoritesRepository
 import com.github.reygnn.thrust.data.EndlessHighScoreRepository
 import com.github.reygnn.thrust.data.WheelSize
 import com.github.reygnn.thrust.domain.engine.PhysicsConstants
@@ -37,6 +39,7 @@ class GameViewModelTest {
     private val levelRepo: LevelRepository = LevelRepositoryImpl()
     private val highScoreRepo              = mockk<HighScoreRepository>()
     private val endlessHighScoreRepo       = mockk<EndlessHighScoreRepository>()
+    private val endlessFavoritesRepo       = mockk<EndlessFavoritesRepository>()
     private val settingsRepo               = mockk<SettingsRepository>()
     private val physicsEngine              = PhysicsEngine()
 
@@ -45,6 +48,9 @@ class GameViewModelTest {
         coEvery { highScoreRepo.updateHighScore(any(), any()) } just Runs
         every { endlessHighScoreRepo.getStreaks() } returns flowOf(emptyMap())
         coEvery { endlessHighScoreRepo.updateStreak(any(), any()) } just Runs
+        every { endlessFavoritesRepo.getFavorites() } returns flowOf(emptyList())
+        coEvery { endlessFavoritesRepo.addFavorite(any()) } just Runs
+        coEvery { endlessFavoritesRepo.removeFavorite(any()) } just Runs
         every { settingsRepo.playerGunEnabled } returns flowOf(false)
         // SettingsRepository hat mehrere Felder, die im VM-Konstruktor sofort
         // via stateIn() konsumiert werden. Alle müssen gestubbt sein, sonst
@@ -58,13 +64,18 @@ class GameViewModelTest {
     private fun buildVm(
         engine: PhysicsEngine = physicsEngine,
         seedSource: () -> Long = { 0L },
+        clock: () -> Long = { 0L },
+        savedStateHandle: androidx.lifecycle.SavedStateHandle = androidx.lifecycle.SavedStateHandle(),
     ) = GameViewModel(
         physicsEngine              = engine,
         levelRepository            = levelRepo,
         highScoreRepository        = highScoreRepo,
         endlessHighScoreRepository = endlessHighScoreRepo,
+        endlessFavoritesRepository = endlessFavoritesRepo,
         settingsRepository         = settingsRepo,
         seedSource                 = seedSource,
+        clock                      = clock,
+        savedStateHandle           = savedStateHandle,
     )
 
     // ── Initial state ─────────────────────────────────────────────────────────
@@ -213,6 +224,7 @@ class GameViewModelTest {
             },
             highScoreRepository        = highScoreRepo,
             endlessHighScoreRepository = endlessHighScoreRepo,
+            endlessFavoritesRepository = endlessFavoritesRepo,
             settingsRepository         = settingsRepo,
         )
 
@@ -326,5 +338,72 @@ class GameViewModelTest {
             advanceTimeBy(100)
 
             coVerify { endlessHighScoreRepo.updateStreak(Difficulty.MEDIUM, 1) }
+        }
+
+    @Test fun `saveCurrentAsFavorite stores difficulty and current seed`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            stubRepo()
+            val vm = buildVm(seedSource = { 999L }, clock = { 1_700_000_000_000L })
+            vm.startEndlessGame(Difficulty.IMPOSSIBLE)
+
+            vm.saveCurrentAsFavorite()
+            advanceTimeBy(50)
+
+            coVerify { endlessFavoritesRepo.addFavorite(EndlessFavorite(Difficulty.IMPOSSIBLE, 999L, 1_700_000_000_000L)) }
+        }
+
+    @Test fun `saveCurrentAsFavorite is no-op in story mode`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            stubRepo()
+            val vm = buildVm()
+
+            vm.saveCurrentAsFavorite()
+            advanceTimeBy(50)
+
+            coVerify(exactly = 0) { endlessFavoritesRepo.addFavorite(any()) }
+        }
+
+    @Test fun `EndlessFavorite mode is restored from savedStateHandle args`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            stubRepo()
+            val handle = androidx.lifecycle.SavedStateHandle().apply {
+                set(GameViewModel.NAV_ARG_DIFFICULTY, Difficulty.MEDIUM.name)
+                set(GameViewModel.NAV_ARG_SEED, 12345L)
+            }
+            val vm = buildVm(savedStateHandle = handle)
+
+            assertEquals(GameMode.EndlessFavorite(Difficulty.MEDIUM, 12345L), vm.mode.value)
+        }
+
+    @Test fun `advanceToNextLevel in EndlessFavorite emits BackToMenu and skips streak`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            stubRepo()
+            val handle = androidx.lifecycle.SavedStateHandle().apply {
+                set(GameViewModel.NAV_ARG_DIFFICULTY, Difficulty.ROOKIE.name)
+                set(GameViewModel.NAV_ARG_SEED, 7L)
+            }
+            val vm = buildVm(savedStateHandle = handle)
+
+            vm.navEvents.test {
+                vm.onLevelCompleteConfirm()
+                assertEquals(NavEvent.BackToMenu, awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+            coVerify(exactly = 0) { endlessHighScoreRepo.updateStreak(any(), any()) }
+        }
+
+    @Test fun `retryEndlessLevel works in EndlessFavorite (same seed)`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            stubRepo()
+            val handle = androidx.lifecycle.SavedStateHandle().apply {
+                set(GameViewModel.NAV_ARG_DIFFICULTY, Difficulty.MEDIUM.name)
+                set(GameViewModel.NAV_ARG_SEED, 4242L)
+            }
+            val vm = buildVm(savedStateHandle = handle)
+            val firstTerrain = vm.state.value.levelConfig.terrain
+
+            vm.retryEndlessLevel()
+
+            assertEquals(firstTerrain, vm.state.value.levelConfig.terrain)
         }
 }

@@ -1,6 +1,8 @@
 package com.github.reygnn.thrust
 
 import android.app.Application
+import com.github.reygnn.thrust.data.EndlessFavoritesRepository
+import com.github.reygnn.thrust.data.EndlessFavoritesRepositoryImpl
 import com.github.reygnn.thrust.data.EndlessHighScoreRepository
 import com.github.reygnn.thrust.data.EndlessHighScoreRepositoryImpl
 import com.github.reygnn.thrust.data.HighScoreRepository
@@ -14,6 +16,9 @@ class ThrustApplication : Application() {
     }
     val endlessHighScoreRepository: EndlessHighScoreRepository by lazy {
         EndlessHighScoreRepositoryImpl(this)
+    }
+    val endlessFavoritesRepository: EndlessFavoritesRepository by lazy {
+        EndlessFavoritesRepositoryImpl(this)
     }
     val settingsRepository: SettingsRepository by lazy {
         SettingsRepositoryImpl(this)

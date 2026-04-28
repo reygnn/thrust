@@ -66,6 +66,23 @@
     <string name="endless_best_streak">BEST %1$d</string>
     <string name="endless_chaos_disclaimer_title">ABANDON HOPE</string>
     <string name="endless_chaos_disclaimer_body">15–25 Türme. Brutale Schwerkraft. Levels können unspielbar sein — Sprit, Pod oder Landezone evtl. unerreichbar. Notfalls neu starten.</string>
+
+    <!-- Pause additions (only visible in Endless) -->
+    <string name="endless_pause_skip">SKIP LEVEL</string>
+    <string name="endless_pause_save">SAVE LEVEL</string>
+    <string name="endless_pause_saved">SAVED</string>
+
+    <!-- Favorites screen (Arcade-Wörter englisch) -->
+    <string name="endless_favorites">FAVORITES</string>
+    <string name="endless_favorites_title">SAVED LEVELS</string>
+    <string name="endless_favorites_empty">Noch keine gespeicherten Level. Im Pause-Menü kannst du eines speichern.</string>
+    <string name="endless_favorites_play">PLAY</string>
+    <string name="endless_favorites_delete">Entfernen</string>
+    <string name="endless_favorites_back">Zurück</string>
+    <string name="endless_favorite_seed_label">#%1$s</string>
+
+    <!-- LevelComplete: im Favorite-Mode führt der Button nur zum Menü -->
+    <string name="level_complete_done">Menü</string>
     <string name="endless_stat_turrets">Türme %1$d–%2$d</string>
     <string name="endless_stat_barriers">Barrieren %1$d–%2$d</string>
     <string name="endless_stat_gravity">Schwerkraft %1$s</string>

@@ -66,6 +66,23 @@
     <string name="endless_best_streak">BEST %1$d</string>
     <string name="endless_chaos_disclaimer_title">ABANDON HOPE</string>
     <string name="endless_chaos_disclaimer_body">15–25 turrets. Brutal gravity. Levels may be unplayable — fuel, pod or pad sometimes unreachable. Restart if you must.</string>
+
+    <!-- Pause additions (only visible in Endless) -->
+    <string name="endless_pause_skip">SKIP LEVEL</string>
+    <string name="endless_pause_save">SAVE LEVEL</string>
+    <string name="endless_pause_saved">SAVED</string>
+
+    <!-- Favorites screen (arcade words English) -->
+    <string name="endless_favorites">FAVORITES</string>
+    <string name="endless_favorites_title">SAVED LEVELS</string>
+    <string name="endless_favorites_empty">No saved levels yet. Save one from the pause menu.</string>
+    <string name="endless_favorites_play">PLAY</string>
+    <string name="endless_favorites_delete">Remove</string>
+    <string name="endless_favorites_back">Back</string>
+    <string name="endless_favorite_seed_label">#%1$s</string>
+
+    <!-- LevelComplete: in Favorite mode the button just goes back to menu -->
+    <string name="level_complete_done">Menu</string>
     <string name="endless_stat_turrets">Turrets %1$d–%2$d</string>
     <string name="endless_stat_barriers">Barriers %1$d–%2$d</string>
     <string name="endless_stat_gravity">Gravity %1$s</string>

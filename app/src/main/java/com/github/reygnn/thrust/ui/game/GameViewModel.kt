@@ -9,6 +9,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.github.reygnn.thrust.ThrustApplication
 import com.github.reygnn.thrust.data.ControlMode
+import com.github.reygnn.thrust.data.EndlessFavorite
+import com.github.reygnn.thrust.data.EndlessFavoritesRepository
 import com.github.reygnn.thrust.data.EndlessHighScoreRepository
 import com.github.reygnn.thrust.data.HighScoreRepository
 import com.github.reygnn.thrust.data.SettingsRepository
@@ -30,6 +32,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -45,8 +48,10 @@ class GameViewModel(
     private val levelRepository: LevelRepository,
     private val highScoreRepository: HighScoreRepository,
     private val endlessHighScoreRepository: EndlessHighScoreRepository,
+    private val endlessFavoritesRepository: EndlessFavoritesRepository,
     private val settingsRepository: SettingsRepository,
     private val seedSource: () -> Long = { Random.Default.nextLong() },
+    private val clock: () -> Long = { System.currentTimeMillis() },
     savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
 
@@ -63,6 +68,14 @@ class GameViewModel(
 
     private val _endlessStreak = MutableStateFlow(0)
     val endlessStreak: StateFlow<Int> = _endlessStreak.asStateFlow()
+
+    /**
+     * Wahr wenn der aktuell laufende Endless-Seed bereits in den Favoriten liegt.
+     * Wird vom Save-Button im Pause-Overlay als "SAVED"-Anzeige genutzt; nach dem
+     * Wechsel auf einen neuen Seed (advance/retry/next) zurückgesetzt.
+     */
+    private val _currentSeedSaved = MutableStateFlow(false)
+    val currentSeedSaved: StateFlow<Boolean> = _currentSeedSaved.asStateFlow()
 
     private var gameLoopJob: Job? = null
 
@@ -82,14 +95,23 @@ class GameViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WheelSize.MEDIUM)
 
     init {
-        // Wenn die Navigation eine Difficulty mitgegeben hat, starten wir direkt in
-        // Endless. Sonst (Default) Story-Mode mit Level 1.
+        // Wenn die Navigation eine Difficulty mitgegeben hat, starten wir im Endless-
+        // Modus. Optional kann zusätzlich ein Seed mitgegeben werden — dann ist es ein
+        // Favorite-Playthrough (gleicher Seed jedes Mal, ohne Streak-Tracking). Ohne
+        // Difficulty-Argument: Story-Mode (Level 1).
         val difficultyArg = savedStateHandle.get<String>(NAV_ARG_DIFFICULTY)
-        val difficulty = difficultyArg?.let { runCatching { Difficulty.valueOf(it) }.getOrNull() }
+        val seedArg       = savedStateHandle.get<Long>(NAV_ARG_SEED)
+        val difficulty    = difficultyArg?.let { runCatching { Difficulty.valueOf(it) }.getOrNull() }
         if (difficulty != null) {
-            currentEndlessSeed = seedSource()
-            _mode.value  = GameMode.Endless(difficulty)
+            if (seedArg != null) {
+                currentEndlessSeed = seedArg
+                _mode.value = GameMode.EndlessFavorite(difficulty, seedArg)
+            } else {
+                currentEndlessSeed = seedSource()
+                _mode.value = GameMode.Endless(difficulty)
+            }
             _state.value = GameState.initial(LevelGenerator.generate(difficulty, currentEndlessSeed))
+            refreshSavedFlag()
         }
         startLoop()
     }
@@ -152,7 +174,12 @@ class GameViewModel(
                     score  = current.score,
                     lives  = 3,
                 )
+                refreshSavedFlag()
                 startLoop()
+            }
+            is GameMode.EndlessFavorite -> {
+                // Favorite ist ein One-Shot-Level — kein "next", einfach zurück ans Menü.
+                _navEvents.tryEmit(NavEvent.BackToMenu)
             }
         }
     }
@@ -161,10 +188,11 @@ class GameViewModel(
 
     fun restartLevel() {
         val mode = _mode.value
-        if (mode is GameMode.Endless) {
-            _state.value = GameState.initial(LevelGenerator.generate(mode.difficulty, currentEndlessSeed))
+        val difficulty = endlessDifficultyOrNull(mode)
+        _state.value = if (difficulty != null) {
+            GameState.initial(LevelGenerator.generate(difficulty, currentEndlessSeed))
         } else {
-            _state.value = GameState.initial(_state.value.levelConfig)
+            GameState.initial(_state.value.levelConfig)
         }
         startLoop()
     }
@@ -183,28 +211,66 @@ class GameViewModel(
         _endlessStreak.value = 0
         currentEndlessSeed = seedSource()
         _state.value = GameState.initial(LevelGenerator.generate(difficulty, currentEndlessSeed))
+        refreshSavedFlag()
         startLoop()
     }
 
-    /** Game Over → "Den Level nochmal spielen": gleicher Seed, frischer Run. */
+    /**
+     * Game Over → "Den Level nochmal spielen": gleicher Seed, frischer Run.
+     * Funktioniert sowohl in Endless als auch in EndlessFavorite — beide spielen
+     * den aktuellen Seed neu, Streak wird (sofern getrackt) zurückgesetzt.
+     */
     fun retryEndlessLevel() {
-        val mode = _mode.value
-        require(mode is GameMode.Endless) { "retryEndlessLevel called outside Endless mode" }
+        val difficulty = endlessDifficultyOrNull(_mode.value)
+            ?: error("retryEndlessLevel called outside any Endless mode")
         gameLoopJob?.cancel()
         _endlessStreak.value = 0
-        _state.value = GameState.initial(LevelGenerator.generate(mode.difficulty, currentEndlessSeed))
+        _state.value = GameState.initial(LevelGenerator.generate(difficulty, currentEndlessSeed))
         startLoop()
     }
 
     /** Game Over → "Nächstes random Level": neuer Seed, frischer Run, gleiche Difficulty. */
     fun nextEndlessLevel() {
         val mode = _mode.value
-        require(mode is GameMode.Endless) { "nextEndlessLevel called outside Endless mode" }
+        require(mode is GameMode.Endless) { "nextEndlessLevel called outside Endless (regular) mode" }
         gameLoopJob?.cancel()
         _endlessStreak.value = 0
         currentEndlessSeed = seedSource()
         _state.value = GameState.initial(LevelGenerator.generate(mode.difficulty, currentEndlessSeed))
+        refreshSavedFlag()
         startLoop()
+    }
+
+    /**
+     * Speichert den aktuell laufenden Endless-Seed in den Favoriten. No-op wenn
+     * nicht im Endless-Modus oder bereits gespeichert (Repository-seitig idempotent).
+     */
+    fun saveCurrentAsFavorite() {
+        val difficulty = endlessDifficultyOrNull(_mode.value) ?: return
+        val seed = currentEndlessSeed
+        val savedAt = clock()
+        viewModelScope.launch {
+            endlessFavoritesRepository.addFavorite(EndlessFavorite(difficulty, seed, savedAt))
+            _currentSeedSaved.value = true
+        }
+    }
+
+    private fun endlessDifficultyOrNull(mode: GameMode): Difficulty? = when (mode) {
+        is GameMode.Endless         -> mode.difficulty
+        is GameMode.EndlessFavorite -> mode.difficulty
+        GameMode.Story              -> null
+    }
+
+    private fun refreshSavedFlag() {
+        val difficulty = endlessDifficultyOrNull(_mode.value) ?: run {
+            _currentSeedSaved.value = false
+            return
+        }
+        val seed = currentEndlessSeed
+        viewModelScope.launch {
+            val favorites = endlessFavoritesRepository.getFavorites().firstOrNull() ?: emptyList()
+            _currentSeedSaved.value = favorites.any { it.difficulty == difficulty && it.seed == seed }
+        }
     }
 
     fun pauseForBackground() {
@@ -271,6 +337,7 @@ class GameViewModel(
 
     companion object {
         const val NAV_ARG_DIFFICULTY = "difficulty"
+        const val NAV_ARG_SEED       = "seed"
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
@@ -280,6 +347,7 @@ class GameViewModel(
                     levelRepository            = LevelRepositoryImpl(),
                     highScoreRepository        = app.highScoreRepository,
                     endlessHighScoreRepository = app.endlessHighScoreRepository,
+                    endlessFavoritesRepository = app.endlessFavoritesRepository,
                     settingsRepository         = app.settingsRepository,
                     savedStateHandle           = createSavedStateHandle(),
                 )
