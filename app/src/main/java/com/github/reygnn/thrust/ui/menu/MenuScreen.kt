@@ -106,44 +106,45 @@ fun MenuScreen(
                 Spacer(modifier = Modifier.weight(1f))
             }
 
-            // Rechte Spalte: Buttons
+            // Rechte Spalte: Buttons in 2x2-Grid
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier            = Modifier.weight(1f),
             ) {
-                Button(
-                    onClick  = onStartGame,
-                    modifier = Modifier.fillMaxWidth().height(54.dp),
-                ) {
-                    Text(
-                        text  = stringResource(R.string.menu_mission_start),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick  = onStartGame,
+                        modifier = Modifier.weight(1f).height(54.dp),
+                    ) {
+                        Text(
+                            text  = stringResource(R.string.menu_mission_start),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
+                    Button(
+                        onClick  = onStartEndless,
+                        modifier = Modifier.weight(1f).height(54.dp),
+                    ) {
+                        Text(
+                            text  = stringResource(R.string.menu_endless),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
                 }
-
-                Button(
-                    onClick  = onStartEndless,
-                    modifier = Modifier.fillMaxWidth().height(54.dp),
-                ) {
-                    Text(
-                        text  = stringResource(R.string.menu_endless),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                }
-
-                OutlinedButton(
-                    onClick  = onHighScores,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                ) {
-                    Text(stringResource(R.string.menu_high_scores))
-                }
-
-                OutlinedButton(
-                    onClick  = onOptions,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                ) {
-                    Text(stringResource(R.string.menu_options))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(
+                        onClick  = onHighScores,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                    ) {
+                        Text(stringResource(R.string.menu_high_scores))
+                    }
+                    OutlinedButton(
+                        onClick  = onOptions,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                    ) {
+                        Text(stringResource(R.string.menu_options))
+                    }
                 }
             }
         }
