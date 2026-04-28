@@ -32,34 +32,42 @@ object LevelGenerator {
     const val ENDLESS_LEVEL_ID: Int = 0
 
     /**
-     * Maximale Versuchszahl für die Pure-Chaos-Pod-Erreichbarkeitsschleife.
-     * Bei einer pessimistisch geschätzten Trefferquote von ~50% pro Versuch
-     * ist die Wahrscheinlichkeit, dass alle 30 Versuche fehlschlagen, < 10⁻⁹.
+     * Maximale Versuchszahl für die Erreichbarkeitsschleife. Bei einer
+     * pessimistisch geschätzten Trefferquote von ~50% pro Versuch ist die
+     * Wahrscheinlichkeit, dass alle 30 Versuche fehlschlagen, < 10⁻⁹.
      */
-    private const val MAX_POD_REACH_ATTEMPTS = 30
+    private const val MAX_REACH_ATTEMPTS = 30
 
     /**
-     * Erzeugt einen Endless-Level. Für Pure Chaos garantiert: der Pod ist
-     * vom Schiff aus geometrisch erreichbar (BFS-Check). Findet keine der
-     * [MAX_POD_REACH_ATTEMPTS] Seed-Permutationen ein erreichbares Layout,
-     * wird die letzte Variante zurückgegeben (in der Praxis nie der Fall).
+     * Erzeugt einen Endless-Level mit Erreichbarkeits-Garantie:
      *
-     * Pad-Erreichbarkeit ist in Pure Chaos weiter optional — der Disclaimer
-     * weist explizit darauf hin.
+     * - **Pure Chaos**: der Pod ist vom Schiff aus geometrisch erreichbar.
+     *   Pad-Erreichbarkeit ist absichtlich nicht garantiert — Disclaimer.
+     * - **Alle anderen Difficulties**: Pod **und** Pad-Anflug erreichbar
+     *   (volle Spielbarkeit).
+     *
+     * Wird die Erfüllung im ersten Anlauf nicht erreicht, wird der Seed
+     * permutiert und neu generiert — bis zu [MAX_REACH_ATTEMPTS] Versuche.
+     * Die Funktion bleibt deterministisch in (difficulty, seed).
      */
     fun generate(difficulty: Difficulty, seed: Long): LevelConfig {
-        if (difficulty != Difficulty.PURE_CHAOS) return generateOnce(difficulty, seed)
-
         var s = seed
-        var lastCfg: LevelConfig = generateOnce(difficulty, s)
-        if (LevelPlayability.isPodReachableFromShip(lastCfg)) return lastCfg
-        repeat(MAX_POD_REACH_ATTEMPTS - 1) {
-            // Einfache Seed-Permutation; bleibt deterministisch zu (difficulty, seed).
+        var lastCfg = generateOnce(difficulty, s)
+        if (passes(difficulty, lastCfg)) return lastCfg
+        repeat(MAX_REACH_ATTEMPTS - 1) {
+            // Einfache LCG-Permutation; bleibt deterministisch zu (difficulty, seed).
             s = s * 0x5DEECE66DL + 0xBL
             lastCfg = generateOnce(difficulty, s)
-            if (LevelPlayability.isPodReachableFromShip(lastCfg)) return lastCfg
+            if (passes(difficulty, lastCfg)) return lastCfg
         }
         return lastCfg
+    }
+
+    private fun passes(difficulty: Difficulty, cfg: LevelConfig): Boolean {
+        if (!LevelPlayability.isPodReachableFromShip(cfg)) return false
+        // Pad-Erreichbarkeit ist nur außerhalb von Pure Chaos verpflichtend.
+        if (difficulty != Difficulty.PURE_CHAOS && !LevelPlayability.isPadApproachReachableFromShip(cfg)) return false
+        return true
     }
 
     private fun generateOnce(difficulty: Difficulty, seed: Long): LevelConfig {
