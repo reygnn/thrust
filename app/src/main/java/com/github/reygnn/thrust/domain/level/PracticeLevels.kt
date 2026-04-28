@@ -1,5 +1,6 @@
 package com.github.reygnn.thrust.domain.level
 
+import com.github.reygnn.thrust.domain.engine.PhysicsConstants
 import com.github.reygnn.thrust.domain.model.LandingPad
 import com.github.reygnn.thrust.domain.model.LevelConfig
 import com.github.reygnn.thrust.domain.model.TerrainSegment
@@ -237,11 +238,10 @@ object PracticeLevels {
         val padCenterX = 2400f
         val padHalfWidth = 200f
         val floorY = 1700f
-        // Schiff startet ON dem Pad — der VM überschreibt die Position so dass
-        // der Pod beim Start auf der Pad-Höhe sitzt; das eigentliche Spiel
-        // beginnt mit dem Lift-off zum Pod.
+        // Schiff sitzt mit shipBottom (= shipY + SHIP_RADIUS) exakt auf der
+        // Pad-Linie — visuell satt aufliegend, ohne den 40-Pixel-Schwebebug.
         val shipStartX = padCenterX
-        val shipStartY = floorY - 40f
+        val shipStartY = floorY - PhysicsConstants.SHIP_RADIUS
         return LevelConfig(
             id              = PRACTICE_LEVEL_ID,
             name            = PracticeKind.DELIVERY.displayName,
