@@ -9,6 +9,8 @@ import com.github.reygnn.thrust.data.ThrustSide
 import com.github.reygnn.thrust.data.WheelSize
 import com.github.reygnn.thrust.domain.engine.PhysicsConstants
 import com.github.reygnn.thrust.domain.engine.PhysicsEngine
+import com.github.reygnn.thrust.domain.level.Difficulty
+import com.github.reygnn.thrust.domain.level.LevelGenerator
 import com.github.reygnn.thrust.domain.level.LevelRepository
 import com.github.reygnn.thrust.domain.level.LevelRepositoryImpl
 import com.github.reygnn.thrust.domain.model.*
@@ -49,11 +51,15 @@ class GameViewModelTest {
         every { settingsRepo.wheelSize }   returns flowOf(WheelSize.MEDIUM)
     }
 
-    private fun buildVm(engine: PhysicsEngine = physicsEngine) = GameViewModel(
+    private fun buildVm(
+        engine: PhysicsEngine = physicsEngine,
+        seedSource: () -> Long = { 0L },
+    ) = GameViewModel(
         physicsEngine       = engine,
         levelRepository     = levelRepo,
         highScoreRepository = highScoreRepo,
         settingsRepository  = settingsRepo,
+        seedSource          = seedSource,
     )
 
     // ── Initial state ─────────────────────────────────────────────────────────
@@ -230,6 +236,74 @@ class GameViewModelTest {
             val vm = buildVm()
 
             vm.onGameOverConfirm()
+            advanceTimeBy(100)
+
+            coVerify(exactly = 0) { highScoreRepo.updateHighScore(any(), any()) }
+        }
+
+    // ── Endless mode ──────────────────────────────────────────────────────────
+
+    @Test fun `startEndlessGame switches mode and loads procedural level`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            stubRepo()
+            val vm = buildVm(seedSource = { 1234L })
+
+            vm.startEndlessGame(Difficulty.MEDIUM)
+
+            assertEquals(GameMode.Endless(Difficulty.MEDIUM), vm.mode.value)
+            assertEquals(LevelGenerator.ENDLESS_LEVEL_ID, vm.state.value.currentLevel)
+            assertEquals(Difficulty.MEDIUM.gravity, vm.state.value.levelConfig.gravity, 0.0001f)
+            assertEquals(0, vm.endlessStreak.value)
+        }
+
+    @Test fun `retryEndlessLevel reuses same seed (identical level layout)`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            stubRepo()
+            val vm = buildVm(seedSource = { 4242L })
+            vm.startEndlessGame(Difficulty.ROOKIE)
+            val firstTerrain = vm.state.value.levelConfig.terrain
+
+            vm.retryEndlessLevel()
+
+            assertEquals(firstTerrain, vm.state.value.levelConfig.terrain)
+        }
+
+    @Test fun `nextEndlessLevel uses a fresh seed (different layout)`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            stubRepo()
+            // Sequenz von Seeds, damit zwei Aufrufe wirklich unterschiedlich sind.
+            val seeds = ArrayDeque(listOf(11L, 22L))
+            val vm = buildVm(seedSource = { seeds.removeFirst() })
+            vm.startEndlessGame(Difficulty.MEDIUM)
+            val firstTerrain = vm.state.value.levelConfig.terrain
+
+            vm.nextEndlessLevel()
+
+            assertNotEquals(firstTerrain, vm.state.value.levelConfig.terrain)
+        }
+
+    @Test fun `advanceToNextLevel in endless increments streak and resets lives`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            stubRepo()
+            val seeds = ArrayDeque(listOf(1L, 2L, 3L))
+            val vm = buildVm(seedSource = { seeds.removeFirst() })
+            vm.startEndlessGame(Difficulty.ROOKIE)
+
+            vm.onLevelCompleteConfirm()
+
+            assertEquals(1, vm.endlessStreak.value)
+            assertEquals(3, vm.state.value.lives)
+            assertEquals(LevelGenerator.ENDLESS_LEVEL_ID, vm.state.value.currentLevel)
+        }
+
+    @Test fun `advanceToNextLevel in endless does NOT persist a level highscore`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            stubRepo()
+            val seeds = ArrayDeque(listOf(1L, 2L))
+            val vm = buildVm(seedSource = { seeds.removeFirst() })
+            vm.startEndlessGame(Difficulty.ROOKIE)
+
+            vm.onLevelCompleteConfirm()
             advanceTimeBy(100)
 
             coVerify(exactly = 0) { highScoreRepo.updateHighScore(any(), any()) }

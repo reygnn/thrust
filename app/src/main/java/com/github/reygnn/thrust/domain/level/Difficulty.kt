@@ -1,0 +1,73 @@
+package com.github.reygnn.thrust.domain.level
+
+/**
+ * Endless-Mode-Schwierigkeit. Die Werte hier sind die Generierungs-Parameter,
+ * die der [LevelGenerator] ausliest. Story-Mode nutzt diese Klasse nicht.
+ */
+enum class Difficulty(
+    val displayName: String,
+    val worldWidth: Float,
+    val worldHeight: Float,
+    val gravity: Float,
+    val turretCount: IntRange,
+    val turretFirePeriod: IntRange,
+    val turretBulletSpeed: ClosedFloatingPointRange<Float>,
+    val barrierCount: IntRange,
+    val padHalfWidth: Float,
+) {
+    ROOKIE(
+        displayName       = "Rookie",
+        worldWidth        = 2000f,
+        worldHeight       = 1500f,
+        gravity           = 0.025f,
+        turretCount       = 0..0,
+        turretFirePeriod  = 200..200,
+        turretBulletSpeed = 4.0f..4.0f,
+        barrierCount      = 0..1,
+        padHalfWidth      = 280f,
+    ),
+    MEDIUM(
+        displayName       = "Medium",
+        worldWidth        = 3000f,
+        worldHeight       = 2000f,
+        gravity           = 0.045f,
+        turretCount       = 1..2,
+        turretFirePeriod  = 130..170,
+        turretBulletSpeed = 4.5f..5.0f,
+        barrierCount      = 1..2,
+        padHalfWidth      = 230f,
+    ),
+    IMPOSSIBLE(
+        displayName       = "Impossible",
+        worldWidth        = 4000f,
+        worldHeight       = 2800f,
+        gravity           = 0.065f,
+        turretCount       = 3..4,
+        turretFirePeriod  = 90..130,
+        turretBulletSpeed = 5.0f..5.5f,
+        barrierCount      = 2..3,
+        padHalfWidth      = 200f,
+    ),
+    INSTA_DEATH(
+        displayName       = "InstaDeath",
+        worldWidth        = 4500f,
+        worldHeight       = 3200f,
+        gravity           = 0.080f,
+        turretCount       = 4..6,
+        turretFirePeriod  = 70..100,
+        turretBulletSpeed = 5.5f..6.5f,
+        barrierCount      = 3..4,
+        padHalfWidth      = 170f,
+    ),
+    PURE_CHAOS(
+        displayName       = "Pure Chaos",
+        worldWidth        = 5500f,
+        worldHeight       = 3500f,
+        gravity           = 0.095f,
+        turretCount       = 6..9,
+        turretFirePeriod  = 50..90,
+        turretBulletSpeed = 6.0f..7.5f,
+        barrierCount      = 4..6,
+        padHalfWidth      = 150f,
+    ),
+}
