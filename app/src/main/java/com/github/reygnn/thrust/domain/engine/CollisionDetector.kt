@@ -24,6 +24,10 @@ class CollisionDetector {
     fun checkShipTerrain(ship: Ship, terrain: List<TerrainSegment>): Boolean =
         terrain.any { circleIntersectsSegment(ship.position, PhysicsConstants.SHIP_RADIUS, it.start, it.end) }
 
+    /** True if pod circle overlaps any terrain segment. */
+    fun checkPodTerrain(pod: FuelPod, terrain: List<TerrainSegment>): Boolean =
+        terrain.any { circleIntersectsSegment(pod.position, PhysicsConstants.POD_RADIUS, it.start, it.end) }
+
     // ── Landing ──────────────────────────────────────────────────────────────
     sealed interface LandingResult {
         data object None    : LandingResult

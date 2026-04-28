@@ -31,8 +31,30 @@ class PhysicsEngine(
 
         var pod = when {
             state.fuelPod.isDelivered  -> state.fuelPod
-            state.fuelPod.isPickedUp   -> updateRope(state.fuelPod, ship.position, state.levelConfig.gravity)
-            else                       -> state.fuelPod
+            state.fuelPod.isPickedUp   -> {
+                // Pod hängt am Seil. Erst Pendel-Update, dann auf Terrain prüfen —
+                // streift der Pod eine Wand, reißt das Seil und der Pod fällt.
+                val swung = updateRope(state.fuelPod, ship.position, state.levelConfig.gravity)
+                if (collisionDetector.checkPodTerrain(swung, state.levelConfig.terrain)) {
+                    ship = ship.copy(hasPod = false)
+                    swung.copy(isPickedUp = false, isFalling = true)
+                } else {
+                    swung
+                }
+            }
+            state.fuelPod.isFalling -> {
+                // Frei fallender Pod: Schwerkraft anwenden, bei Terrain-Kontakt
+                // an Ort und Stelle liegen bleiben (kein Bouncing für jetzt).
+                val newVel = state.fuelPod.velocity + Vector2(0f, state.levelConfig.gravity * 0.6f)
+                val newPos = state.fuelPod.position + newVel
+                val testPod = state.fuelPod.copy(position = newPos)
+                if (collisionDetector.checkPodTerrain(testPod, state.levelConfig.terrain)) {
+                    state.fuelPod.copy(velocity = Vector2.Zero, isFalling = false)
+                } else {
+                    state.fuelPod.copy(position = newPos, velocity = newVel)
+                }
+            }
+            else -> state.fuelPod
         }
 
         val (turrets, newEnemyBullets) = fireTurrets(state.turrets, state.ship.position)
@@ -79,7 +101,13 @@ class PhysicsEngine(
             )
         }
 
-        if (!pod.isPickedUp && !pod.isDelivered && collisionDetector.checkPodPickup(ship, pod)) {
+        // Aufnahme nur wenn der Pod ruht — ein noch fallender Pod wird nicht direkt
+        // wieder ans Seil gehängt, sonst ist die "Wand-streifen → fällt"-Mechanik
+        // wirkungslos (das Schiff wäre meist unmittelbar nach dem Detach noch in
+        // Pickup-Reichweite).
+        if (!pod.isPickedUp && !pod.isDelivered && !pod.isFalling &&
+            collisionDetector.checkPodPickup(ship, pod)
+        ) {
             pod  = pod.copy(isPickedUp = true)
             ship = ship.copy(hasPod = true)
         }

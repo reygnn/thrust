@@ -19,6 +19,14 @@ data class FuelPod(
     val velocity: Vector2 = Vector2.Zero,
     val isPickedUp: Boolean = false,
     val isDelivered: Boolean = false,
+    /**
+     * True wenn der Pod gerade aus dem Seil gerissen wurde und unter der
+     * Schwerkraft fällt. Sobald er ein Terrain-Segment berührt setzt sich
+     * dieses Flag wieder auf false (Pod liegt). Frisch platzierte oder von
+     * der Engine zurückgesetzte Pods sind nicht "falling" — sie warten an
+     * ihrer Position.
+     */
+    val isFalling: Boolean = false,
 )
 
 // ── Bullet ───────────────────────────────────────────────────────────────────

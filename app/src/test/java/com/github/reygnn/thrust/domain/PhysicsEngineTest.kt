@@ -177,6 +177,68 @@ class PhysicsEngineTest {
         assertTrue("phase should be LevelComplete", after.phase is GamePhase.LevelComplete)
     }
 
+    // ── Pod-on-rope grazes wall → detaches and falls ──────────────────────────
+
+    @Test fun `picked up pod that grazes terrain detaches and starts falling`() {
+        val detector = mockk<CollisionDetector>()
+        every { detector.checkShipTerrain(any(), any()) } returns false
+        every { detector.checkBulletShip(any(), any()) }  returns false
+        every { detector.checkLanding(any(), any()) }     returns CollisionDetector.LandingResult.None
+        every { detector.checkPodPickup(any(), any()) }   returns false
+        every { detector.checkPodDelivery(any(), any()) } returns false
+        every { detector.checkPodTerrain(any(), any()) }  returns true
+
+        val engine = PhysicsEngine(collisionDetector = detector)
+        val s = baseState().copy(
+            ship    = Ship(position = Vector2(500f, 500f), hasPod = true),
+            fuelPod = FuelPod(position = Vector2(500f, 530f), isPickedUp = true),
+        )
+        val after = engine.update(s, InputState())
+        assertFalse("pod should detach", after.fuelPod.isPickedUp)
+        assertTrue("pod should be falling",  after.fuelPod.isFalling)
+        assertFalse("ship should lose pod",  after.ship.hasPod)
+    }
+
+    @Test fun `falling pod that hits terrain settles with zero velocity`() {
+        val detector = mockk<CollisionDetector>()
+        every { detector.checkShipTerrain(any(), any()) } returns false
+        every { detector.checkBulletShip(any(), any()) }  returns false
+        every { detector.checkLanding(any(), any()) }     returns CollisionDetector.LandingResult.None
+        every { detector.checkPodPickup(any(), any()) }   returns false
+        every { detector.checkPodDelivery(any(), any()) } returns false
+        every { detector.checkPodTerrain(any(), any()) }  returns true
+
+        val engine = PhysicsEngine(collisionDetector = detector)
+        val s = baseState().copy(fuelPod = FuelPod(
+            position  = Vector2(500f, 1300f),
+            velocity  = Vector2(0f, 5f),
+            isFalling = true,
+        ))
+        val after = engine.update(s, InputState())
+        assertFalse("pod should be settled", after.fuelPod.isFalling)
+        assertEquals(0f, after.fuelPod.velocity.x, 0.001f)
+        assertEquals(0f, after.fuelPod.velocity.y, 0.001f)
+    }
+
+    @Test fun `falling pod cannot be picked up even when ship is in range`() {
+        val detector = mockk<CollisionDetector>()
+        every { detector.checkShipTerrain(any(), any()) } returns false
+        every { detector.checkBulletShip(any(), any()) }  returns false
+        every { detector.checkLanding(any(), any()) }     returns CollisionDetector.LandingResult.None
+        every { detector.checkPodPickup(any(), any()) }   returns true
+        every { detector.checkPodDelivery(any(), any()) } returns false
+        every { detector.checkPodTerrain(any(), any()) }  returns false
+
+        val engine = PhysicsEngine(collisionDetector = detector)
+        val s = baseState().copy(
+            ship    = Ship(position = Vector2(500f, 500f)),
+            fuelPod = FuelPod(position = Vector2(500f, 500f), isFalling = true),
+        )
+        val after = engine.update(s, InputState())
+        assertFalse("falling pod should not be picked up", after.fuelPod.isPickedUp)
+        assertFalse("ship should not gain pod",            after.ship.hasPod)
+    }
+
     // ── Frame counter ─────────────────────────────────────────────────────────
 
     @Test fun `frame count increments each playing frame`() {
