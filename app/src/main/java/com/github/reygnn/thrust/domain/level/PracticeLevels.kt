@@ -238,10 +238,11 @@ object PracticeLevels {
         val padCenterX = 2400f
         val padHalfWidth = 200f
         val floorY = 1700f
-        // Schiff sitzt mit shipBottom (= shipY + SHIP_RADIUS) exakt auf der
-        // Pad-Linie — visuell satt aufliegend, ohne den 40-Pixel-Schwebebug.
-        val shipStartX = padCenterX
-        val shipStartY = floorY - PhysicsConstants.SHIP_RADIUS
+        // Schiff spawnt oben links — Story-Mode-Style. Spieler muss vom ersten
+        // Frame an aktiv schubsteuern (sonst freier Fall → Crash → neuer Cycle).
+        // Pad sitzt diagonal gegenüber unten rechts.
+        val shipStartX = 400f
+        val shipStartY = 400f
         return LevelConfig(
             id              = PRACTICE_LEVEL_ID,
             name            = PracticeKind.DELIVERY.displayName,

@@ -290,18 +290,20 @@ class GameViewModel(
 
     /**
      * Random-Position für den Pod im DELIVERY-Mode — mindestens 1000 Einheiten
-     * vom Pad entfernt damit der Spieler ein nennenswertes Stück fliegen muss.
-     * Margin von 250 zu den Außenwänden.
+     * vom Pad und 600 Einheiten vom Schiff-Spawn entfernt, damit der Spieler
+     * ein nennenswertes Stück fliegen muss und der Pod nicht zufällig direkt
+     * neben dem Spawn liegt. Margin von 250 zu den Außenwänden.
      */
     private fun pickPodTarget(): Vector2 {
         val cfg = practiceConfig ?: return Vector2.Zero
         val padCenter = cfg.landingPad.center
+        val shipSpawn = cfg.shipStart
         val margin = 250f
         repeat(20) {
             val x = margin + practiceRng.nextFloat() * (cfg.worldWidth  - 2f * margin)
             val y = margin + practiceRng.nextFloat() * (cfg.worldHeight - 2f * margin)
             val pos = Vector2(x, y)
-            if ((pos - padCenter).length() > 1000f) return pos
+            if ((pos - padCenter).length() > 1000f && (pos - shipSpawn).length() > 600f) return pos
         }
         return Vector2(margin, margin)
     }
