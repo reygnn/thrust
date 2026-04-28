@@ -123,6 +123,13 @@
 <string name="options_wheel_size_large">L</string>
 <string name="options_wheel_size_xl">XL</string>
 
+<string name="options_thrust_size">Thrust button size</string>
+<string name="options_thrust_size_desc">Diameter of the THRUST button. Affects both control modes.</string>
+<string name="options_thrust_size_small">S</string>
+<string name="options_thrust_size_medium">M</string>
+<string name="options_thrust_size_large">L</string>
+<string name="options_thrust_size_xl">XL</string>
+
 
 
 </resources>

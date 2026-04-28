@@ -14,6 +14,7 @@ import com.github.reygnn.thrust.data.EndlessFavoritesRepository
 import com.github.reygnn.thrust.data.EndlessHighScoreRepository
 import com.github.reygnn.thrust.data.HighScoreRepository
 import com.github.reygnn.thrust.data.SettingsRepository
+import com.github.reygnn.thrust.data.ThrustButtonSize
 import com.github.reygnn.thrust.data.ThrustSide
 import com.github.reygnn.thrust.data.WheelSize
 import com.github.reygnn.thrust.domain.engine.PhysicsConstants
@@ -112,6 +113,9 @@ class GameViewModel(
 
     val wheelSize: StateFlow<WheelSize> = settingsRepository.wheelSize
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WheelSize.MEDIUM)
+
+    val thrustButtonSize: StateFlow<ThrustButtonSize> = settingsRepository.thrustButtonSize
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThrustButtonSize.MEDIUM)
 
     init {
         // Bootstrapping aus dem SavedStateHandle:

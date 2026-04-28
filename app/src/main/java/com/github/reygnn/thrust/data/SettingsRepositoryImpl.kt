@@ -16,10 +16,11 @@ class SettingsRepositoryImpl(
     private val context: Context,
 ) : SettingsRepository {
 
-    private val playerGunKey   = booleanPreferencesKey("player_gun_enabled")
-    private val controlModeKey = stringPreferencesKey("control_mode")
-    private val thrustSideKey  = stringPreferencesKey("thrust_side")
-    private val wheelSizeKey   = stringPreferencesKey("wheel_size")
+    private val playerGunKey       = booleanPreferencesKey("player_gun_enabled")
+    private val controlModeKey     = stringPreferencesKey("control_mode")
+    private val thrustSideKey      = stringPreferencesKey("thrust_side")
+    private val wheelSizeKey       = stringPreferencesKey("wheel_size")
+    private val thrustButtonSizeKey = stringPreferencesKey("thrust_button_size")
 
     override val playerGunEnabled: Flow<Boolean> =
         context.thrustSettingsDataStore.data.map { it[playerGunKey] ?: false }
@@ -62,5 +63,15 @@ class SettingsRepositoryImpl(
 
     override suspend fun setWheelSize(size: WheelSize) {
         context.thrustSettingsDataStore.edit { it[wheelSizeKey] = size.name }
+    }
+
+    override val thrustButtonSize: Flow<ThrustButtonSize> =
+        context.thrustSettingsDataStore.data.map { prefs ->
+            val stored = prefs[thrustButtonSizeKey]
+            ThrustButtonSize.entries.firstOrNull { it.name == stored } ?: ThrustButtonSize.MEDIUM
+        }
+
+    override suspend fun setThrustButtonSize(size: ThrustButtonSize) {
+        context.thrustSettingsDataStore.edit { it[thrustButtonSizeKey] = size.name }
     }
 }

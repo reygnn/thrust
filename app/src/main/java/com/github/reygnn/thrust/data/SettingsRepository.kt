@@ -23,6 +23,18 @@ enum class WheelSize(val diameter: Dp) {
     XL(220.dp),
 }
 
+/**
+ * Größe des Schub-Buttons in dp. Wirkt sowohl im Buttons- als auch im
+ * Drehrad-Modus auf den THRUST-Knopf. Default [MEDIUM] entspricht dem
+ * ursprünglichen Hardcode-Wert von 88dp.
+ */
+enum class ThrustButtonSize(val diameter: Dp) {
+    SMALL(72.dp),
+    MEDIUM(88.dp),
+    LARGE(104.dp),
+    XL(128.dp),
+}
+
 interface SettingsRepository {
     val playerGunEnabled: Flow<Boolean>
     suspend fun setPlayerGunEnabled(enabled: Boolean)
@@ -37,4 +49,7 @@ interface SettingsRepository {
     /** Nur relevant im Drehrad-Modus. */
     val wheelSize: Flow<WheelSize>
     suspend fun setWheelSize(size: WheelSize)
+
+    val thrustButtonSize: Flow<ThrustButtonSize>
+    suspend fun setThrustButtonSize(size: ThrustButtonSize)
 }

@@ -27,6 +27,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.reygnn.thrust.R
 import com.github.reygnn.thrust.data.ControlMode
+import com.github.reygnn.thrust.data.ThrustButtonSize
 import com.github.reygnn.thrust.data.ThrustSide
 import com.github.reygnn.thrust.data.WheelSize
 import com.github.reygnn.thrust.domain.engine.PhysicsConstants
@@ -61,6 +62,7 @@ fun GameScreen(
     val controlMode by vm.controlMode.collectAsStateWithLifecycle()
     val thrustSide  by vm.thrustSide.collectAsStateWithLifecycle()
     val wheelSize   by vm.wheelSize.collectAsStateWithLifecycle()
+    val thrustSize  by vm.thrustButtonSize.collectAsStateWithLifecycle()
     val mode        by vm.mode.collectAsStateWithLifecycle()
     val streak      by vm.endlessStreak.collectAsStateWithLifecycle()
     val savedAlready by vm.currentSeedSaved.collectAsStateWithLifecycle()
@@ -98,6 +100,7 @@ fun GameScreen(
                 onThrust         = vm::onThrust,
                 onFire           = vm::onFire,
                 playerGunEnabled = gunEnabled,
+                thrustSize       = thrustSize,
                 modifier         = Modifier.align(Alignment.BottomCenter),
             )
             ControlMode.WHEEL -> WheelControls(
@@ -108,6 +111,7 @@ fun GameScreen(
                 playerGunEnabled = gunEnabled,
                 thrustSide       = thrustSide,
                 wheelSize        = wheelSize,
+                thrustSize       = thrustSize,
                 modifier         = Modifier.align(Alignment.BottomCenter),
             )
         }
@@ -273,6 +277,7 @@ private fun GameControls(
     onThrust:         (Boolean) -> Unit,
     onFire:           (Boolean) -> Unit,
     playerGunEnabled: Boolean,
+    thrustSize:       ThrustButtonSize,
     modifier:         Modifier = Modifier,
 ) {
     Row(
@@ -282,13 +287,13 @@ private fun GameControls(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment     = Alignment.CenterVertically,
     ) {
-        ControlButton(label = "◄", size = 72, onPress = onRotateLeft)
-        ControlButton(label = stringResource(R.string.control_thrust_label), size = 88, onPress = onThrust)
-        ControlButton(label = "►", size = 72, onPress = onRotateRight)
+        ControlButton(label = "◄", size = 72.dp, onPress = onRotateLeft)
+        ControlButton(label = stringResource(R.string.control_thrust_label), size = thrustSize.diameter, onPress = onThrust)
+        ControlButton(label = "►", size = 72.dp, onPress = onRotateRight)
         if (playerGunEnabled) {
             ControlButton(
                 label     = stringResource(R.string.control_fire_label),
-                size      = 72,
+                size      = 72.dp,
                 tintColor = Color(0xFFFF5252),
                 onPress   = onFire,
             )
@@ -307,6 +312,7 @@ private fun WheelControls(
     playerGunEnabled: Boolean,
     thrustSide:       ThrustSide,
     wheelSize:        WheelSize,
+    thrustSize:       ThrustButtonSize,
     modifier:         Modifier = Modifier,
 ) {
     LaunchedEffect(Unit) { onTargetAngle(initialAngle) }
@@ -322,7 +328,7 @@ private fun WheelControls(
         if (thrustSide == ThrustSide.LEFT) {
             ControlButton(
                 label   = stringResource(R.string.control_thrust_label),
-                size    = 88,
+                size    = thrustSize.diameter,
                 onPress = onThrust,
             )
             RotationWheel(
@@ -340,7 +346,7 @@ private fun WheelControls(
             )
             ControlButton(
                 label   = stringResource(R.string.control_thrust_label),
-                size    = 88,
+                size    = thrustSize.diameter,
                 onPress = onThrust,
             )
         }
@@ -350,14 +356,14 @@ private fun WheelControls(
 @Composable
 private fun ControlButton(
     label:     String,
-    size:      Int,
+    size:      androidx.compose.ui.unit.Dp,
     tintColor: Color = Color.White,
     onPress:   (Boolean) -> Unit,
 ) {
     Box(
         contentAlignment = Alignment.Center,
         modifier         = Modifier
-            .size(size.dp)
+            .size(size)
             .clip(CircleShape)
             .background(tintColor.copy(alpha = 0.10f))
             .border(1.5.dp, tintColor.copy(alpha = 0.35f), CircleShape)

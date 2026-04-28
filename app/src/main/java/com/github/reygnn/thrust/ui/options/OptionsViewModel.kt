@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.github.reygnn.thrust.ThrustApplication
 import com.github.reygnn.thrust.data.ControlMode
 import com.github.reygnn.thrust.data.SettingsRepository
+import com.github.reygnn.thrust.data.ThrustButtonSize
 import com.github.reygnn.thrust.data.ThrustSide
 import com.github.reygnn.thrust.data.WheelSize
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,6 +32,9 @@ class OptionsViewModel(
     val wheelSize: StateFlow<WheelSize> = settingsRepository.wheelSize
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WheelSize.MEDIUM)
 
+    val thrustButtonSize: StateFlow<ThrustButtonSize> = settingsRepository.thrustButtonSize
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThrustButtonSize.MEDIUM)
+
     fun togglePlayerGun(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setPlayerGunEnabled(enabled) }
     }
@@ -45,6 +49,10 @@ class OptionsViewModel(
 
     fun setWheelSize(size: WheelSize) {
         viewModelScope.launch { settingsRepository.setWheelSize(size) }
+    }
+
+    fun setThrustButtonSize(size: ThrustButtonSize) {
+        viewModelScope.launch { settingsRepository.setThrustButtonSize(size) }
     }
 
     companion object {

@@ -16,6 +16,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.reygnn.thrust.R
 import com.github.reygnn.thrust.data.ControlMode
+import com.github.reygnn.thrust.data.ThrustButtonSize
 import com.github.reygnn.thrust.data.ThrustSide
 import com.github.reygnn.thrust.data.WheelSize
 
@@ -29,6 +30,7 @@ fun OptionsScreen(
     val controlMode by vm.controlMode.collectAsStateWithLifecycle()
     val thrustSide  by vm.thrustSide.collectAsStateWithLifecycle()
     val wheelSize   by vm.wheelSize.collectAsStateWithLifecycle()
+    val thrustSize  by vm.thrustButtonSize.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -162,6 +164,46 @@ fun OptionsScreen(
                             modifier = Modifier.weight(1f),
                         )
                     }
+                }
+            }
+
+            // Schub-Button-Größe (in beiden Modi sichtbar)
+            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                Text(
+                    text  = stringResource(R.string.options_thrust_size),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text  = stringResource(R.string.options_thrust_size_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(4.dp))
+                Row {
+                    RadioRow(
+                        selected = thrustSize == ThrustButtonSize.SMALL,
+                        label    = stringResource(R.string.options_thrust_size_small),
+                        onSelect = { vm.setThrustButtonSize(ThrustButtonSize.SMALL) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    RadioRow(
+                        selected = thrustSize == ThrustButtonSize.MEDIUM,
+                        label    = stringResource(R.string.options_thrust_size_medium),
+                        onSelect = { vm.setThrustButtonSize(ThrustButtonSize.MEDIUM) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    RadioRow(
+                        selected = thrustSize == ThrustButtonSize.LARGE,
+                        label    = stringResource(R.string.options_thrust_size_large),
+                        onSelect = { vm.setThrustButtonSize(ThrustButtonSize.LARGE) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    RadioRow(
+                        selected = thrustSize == ThrustButtonSize.XL,
+                        label    = stringResource(R.string.options_thrust_size_xl),
+                        onSelect = { vm.setThrustButtonSize(ThrustButtonSize.XL) },
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
 

@@ -9,6 +9,7 @@ import com.github.reygnn.thrust.data.ThrustSide
 import com.github.reygnn.thrust.data.EndlessFavorite
 import com.github.reygnn.thrust.data.EndlessFavoritesRepository
 import com.github.reygnn.thrust.data.EndlessHighScoreRepository
+import com.github.reygnn.thrust.data.ThrustButtonSize
 import com.github.reygnn.thrust.data.WheelSize
 import com.github.reygnn.thrust.domain.engine.PhysicsConstants
 import com.github.reygnn.thrust.domain.engine.PhysicsEngine
@@ -56,9 +57,10 @@ class GameViewModelTest {
         // via stateIn() konsumiert werden. Alle müssen gestubbt sein, sonst
         // wirft MockK beim Anlegen des ViewModels und ALLE Tests reißen
         // gleichzeitig durch (haben wir schon einmal erlebt).
-        every { settingsRepo.controlMode } returns flowOf(ControlMode.BUTTONS)
-        every { settingsRepo.thrustSide }  returns flowOf(ThrustSide.RIGHT)
-        every { settingsRepo.wheelSize }   returns flowOf(WheelSize.MEDIUM)
+        every { settingsRepo.controlMode }      returns flowOf(ControlMode.BUTTONS)
+        every { settingsRepo.thrustSide }       returns flowOf(ThrustSide.RIGHT)
+        every { settingsRepo.wheelSize }        returns flowOf(WheelSize.MEDIUM)
+        every { settingsRepo.thrustButtonSize } returns flowOf(ThrustButtonSize.MEDIUM)
     }
 
     private fun buildVm(

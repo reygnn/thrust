@@ -123,4 +123,11 @@
 <string name="options_wheel_size_large">L</string>
 <string name="options_wheel_size_xl">XL</string>
 
+<string name="options_thrust_size">Schub-Button-Größe</string>
+<string name="options_thrust_size_desc">Durchmesser des THRUST-Knopfs. Wirkt in beiden Steuerungsmodi.</string>
+<string name="options_thrust_size_small">S</string>
+<string name="options_thrust_size_medium">M</string>
+<string name="options_thrust_size_large">L</string>
+<string name="options_thrust_size_xl">XL</string>
+
 </resources>
