@@ -259,6 +259,16 @@ class GameViewModel(
         // Tod wird die State im Practice-Frame-Handler ohnehin frisch ersetzt.
         val state = GameState.initial(cfg, lives = PRACTICE_LIVES)
         return when (kind) {
+            // TUBE: Schiff hat den Pod von Anfang an am Seil — die Pendel-Physik
+            // macht das Navigieren durch den Schlangenkorridor deutlich härter.
+            PracticeKind.TUBE -> state.copy(
+                ship    = state.ship.copy(hasPod = true),
+                fuelPod = state.fuelPod.copy(
+                    position    = state.ship.position + Vector2(0f, 50f),
+                    isPickedUp  = true,
+                    isDelivered = false,
+                ),
+            )
             // DELIVERY: Schiff steht auf dem Pad, Pod liegt frei an einer Random-
             // Position weiter weg. Spieler hebt ab, holt den Pod, bringt ihn zurück
             // und landet. Engine triggert LevelComplete sobald isDelivered=true und
@@ -450,14 +460,10 @@ class GameViewModel(
             PracticeKind.TUBE -> {
                 val w = working.levelConfig.worldWidth
                 if (working.ship.position.x > w - 200f && working.ship.velocity.x > 0f) {
-                    val cfg = working.levelConfig
-                    working = working.copy(
-                        ship = working.ship.copy(
-                            position = cfg.shipStart,
-                            velocity = Vector2.Zero,
-                            angle    = cfg.shipStartAngle,
-                        ),
-                    )
+                    // Voller Reset, damit der Pod am Seil mitgenommen wird (sonst
+                    // bleibt er am rechten Wand-Rand zurück und das Seil wird
+                    // physikalisch unsinnig gestreckt).
+                    return practiceInitialState(kind)
                 }
             }
             PracticeKind.DELIVERY -> { /* nur Tod/LevelComplete-Reset oben */ }
