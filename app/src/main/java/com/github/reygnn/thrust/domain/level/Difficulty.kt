@@ -64,7 +64,7 @@ enum class Difficulty(
         worldWidth        = 5500f,
         worldHeight       = 3500f,
         gravity           = 0.095f,
-        turretCount       = 6..9,
+        turretCount       = 15..25,
         turretFirePeriod  = 50..90,
         turretBulletSpeed = 6.0f..7.5f,
         barrierCount      = 4..6,

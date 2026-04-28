@@ -65,7 +65,7 @@
     <string name="endless_streak">STREAK %1$d</string>
     <string name="endless_best_streak">BEST %1$d</string>
     <string name="endless_chaos_disclaimer_title">ABANDON HOPE</string>
-    <string name="endless_chaos_disclaimer_body">Up to 9 turrets. Brutal gravity. No mercy.</string>
+    <string name="endless_chaos_disclaimer_body">15–25 turrets. Brutal gravity. Levels may be unplayable — fuel, pod or pad sometimes unreachable. Restart if you must.</string>
     <string name="endless_stat_turrets">Turrets %1$d–%2$d</string>
     <string name="endless_stat_barriers">Barriers %1$d–%2$d</string>
     <string name="endless_stat_gravity">Gravity %1$s</string>

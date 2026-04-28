@@ -65,7 +65,7 @@
     <string name="endless_streak">STREAK %1$d</string>
     <string name="endless_best_streak">BEST %1$d</string>
     <string name="endless_chaos_disclaimer_title">ABANDON HOPE</string>
-    <string name="endless_chaos_disclaimer_body">Bis zu 9 Türme. Brutale Schwerkraft. Keine Gnade.</string>
+    <string name="endless_chaos_disclaimer_body">15–25 Türme. Brutale Schwerkraft. Levels können unspielbar sein — Sprit, Pod oder Landezone evtl. unerreichbar. Notfalls neu starten.</string>
     <string name="endless_stat_turrets">Türme %1$d–%2$d</string>
     <string name="endless_stat_barriers">Barrieren %1$d–%2$d</string>
     <string name="endless_stat_gravity">Schwerkraft %1$s</string>
