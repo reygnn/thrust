@@ -49,7 +49,13 @@ Wheel diameter is configurable (S / M / L / XL). Thrust button position can be s
 
 ---
 
-## Levels
+## Game Modes
+
+Two modes are available from the main menu.
+
+### Mission (Story)
+
+Four hand-crafted levels in fixed order. Score and lives carry over between levels. Complete all four to finish the mission. High scores are tracked per level.
 
 | # | Name | World Size | Gravity | Turrets |
 |---|------|-----------|---------|---------|
@@ -58,7 +64,33 @@ Wheel diameter is configurable (S / M / L / XL). Thrust button position can be s
 | 3 | Deep Core | 4000 × 3000 | 0.055 | 3 |
 | 4 | Fortress Omega | 5500 × 3500 | 0.080 | 5 |
 
-Score and lives carry over between levels. Complete all four to finish the mission.
+### Endless
+
+Procedurally generated levels at one of five difficulties. Pick your difficulty, run levels in series, accumulate score, see how far you can go. Lives reset to 3 each level; score carries.
+
+| Difficulty | World Size | Gravity | Turrets | Barriers |
+|-----------|-----------|---------|---------|----------|
+| Rookie | 2000 × 1500 | 0.025 | 0 | 0–1 |
+| Medium | 3000 × 2000 | 0.045 | 1–4 | 1–2 |
+| Impossible | 4000 × 2800 | 0.065 | 5–10 | 2–3 |
+| InstaDeath | 4500 × 3200 | 0.080 | 11–15 | 3–4 |
+| Pure Chaos | 5500 × 3500 | 0.095 | 15–25 | 4–6 |
+
+The level generator is deterministic in its seed and runtime-validated: each level is BFS-checked for reachability before being handed to the player. Pure Chaos guarantees the **fuel pod** is always reachable; the four lower difficulties additionally guarantee a **clear approach to the landing pad**. Pure Chaos also shows a brief "ABANDON HOPE" disclaimer on entry — fuel, pod or pad may legitimately be unreachable in the chaotic placement, and a level restart is part of the deal.
+
+**Endless flow:**
+
+- **Death with lives left** → full level reset (same seed, fresh state)
+- **Game Over** → three buttons: Menu / Retry (same level) / Next (random level)
+- **Pause overlay** in Endless adds **Skip Level** (fresh random, streak resets) and **Save Level** (persists this seed as a Favorite)
+
+Persistent stats per difficulty: longest streak (highest number of consecutive levels completed in a single run).
+
+### Favorites
+
+You can save the current Endless level as a Favorite from the pause menu. Saved levels are stored as `(difficulty, seed)` pairs and replay identically. Manage favorites from the **FAVORITES** entry on the difficulty picker screen — tap to play, Remove to delete. Up to 20 entries (FIFO).
+
+A Favorite playthrough does **not** count toward the streak (it would amount to level-hopping); when you complete or quit a Favorite, you return to the menu.
 
 ### Scoring
 
@@ -78,7 +110,7 @@ The ship simulation runs at 60 fps (16 ms frame delay) and obeys the following r
 - **Max speed** is capped at 7 units/frame in any direction.
 - **The rope** is a pendulum — the pod swings and builds momentum. Sudden direction changes will throw it wide.
 - **Landing** requires vertical speed ≤ 2.5 and nose angle ≤ 20° from vertical. Anything outside those tolerances is a crash.
-- **Turrets** track the ship and fire on a per-turret cooldown. Their bullets are removed on impact with terrain or the ship. Turrets sharing the same fire period are deterministically staggered so they don't lock-step fire on the same frame.
+- **Turrets** track the ship and fire on a per-turret cooldown. Bullets are filtered only by lifetime and world bounds — they pass through terrain (intentional; see `TODO.md`). Turrets sharing the same fire period are deterministically staggered so they don't lock-step fire on the same frame.
 
 ---
 
@@ -107,28 +139,37 @@ The project follows **MVVM** with a unidirectional data flow and no dependency i
 ```
 com.github.reygnn.thrust
 ├── data/
-│   ├── HighScoreRepository         # Interface
-│   ├── HighScoreRepositoryImpl     # DataStore-backed
-│   ├── SettingsRepository          # Interface
-│   └── SettingsRepositoryImpl      # DataStore-backed
+│   ├── HighScoreRepository(.Impl)            # Story-mode: high score per level id
+│   ├── EndlessHighScoreRepository(.Impl)     # Endless: longest streak per difficulty
+│   ├── EndlessFavorite                       # (difficulty, seed, savedAt)
+│   ├── EndlessFavoritesRepository(.Impl)     # Saved levels list (max 20, FIFO)
+│   └── SettingsRepository(.Impl)             # Control mode, wheel size, cannon, …
 ├── domain/
 │   ├── engine/
 │   │   ├── PhysicsEngine           # Pure function: GameState + Input → GameState
 │   │   ├── CollisionDetector       # Circle/segment geometry, landing logic
 │   │   └── PhysicsConstants        # All tuning values in one place
 │   ├── level/
-│   │   ├── LevelRepository         # Interface
-│   │   ├── LevelRepositoryImpl     # In-memory, delegates to Levels
-│   │   └── Levels                  # All four level definitions
+│   │   ├── LevelRepository(.Impl)  # Story-mode level lookup
+│   │   ├── Levels                  # The four story-mode level definitions
+│   │   ├── Difficulty              # Endless difficulty + generation parameters
+│   │   ├── LevelGenerator          # Seedable procedural level generator
+│   │   └── LevelPlayability        # BFS-based reachability checker
 │   └── model/
 │       ├── GameModels              # Ship, FuelPod, Bullet, Turret, GameState, …
 │       └── Vector2                 # Lightweight 2D math type
 └── ui/
     ├── game/
-    │   ├── GameViewModel           # Game loop, input, nav events
+    │   ├── GameMode                # Story / Endless / EndlessFavorite
+    │   ├── GameViewModel           # Game loop, input, nav events, mode switching
     │   ├── GameScreen              # Canvas + HUD + controls + overlays
     │   ├── GameCanvas              # DrawScope extensions for all game objects
     │   └── RotationWheel           # The rotary wheel composable
+    ├── endless/
+    │   ├── DifficultyPickerScreen  # 5 difficulty cards + best streak
+    │   ├── EndlessPickerViewModel
+    │   ├── FavoritesScreen         # Manage saved levels
+    │   └── FavoritesViewModel
     ├── menu/         MenuScreen + MenuViewModel
     ├── highscore/    HighScoreScreen + HighScoreViewModel
     ├── options/      OptionsScreen + OptionsViewModel
@@ -188,7 +229,9 @@ The test suite covers the core game logic without any Android dependencies.
 |-------|--------------|
 | `PhysicsEngineTest` | Thrust direction, gravity, fuel depletion, respawn, turret cadence (per-turret cooldown), slider-mode rotation |
 | `CollisionDetectorTest` | Circle/segment intersection, landing success/crash/none, bullet hits |
-| `GameViewModelTest` | Game loop, input handling, pause/resume, nav events, high score saving |
+| `LevelGeneratorTest` | Determinism per seed, world bounds, parameter ranges, pad gap invariant, pod-x cap |
+| `LevelPlayabilityTest` | BFS reachability — pod for all difficulties (incl. Pure Chaos), pad approach for non-Pure-Chaos |
+| `GameViewModelTest` | Game loop, input handling, pause/resume, nav events, high score & streak saving, Endless modes (regular + favorite), seed propagation |
 | `HighScoreRepositoryTest` | Score persistence, update-only-if-higher logic |
 
 All tests use `MainDispatcherRule` with `UnconfinedTestDispatcher` and pass it explicitly to `runTest(mainDispatcherRule.dispatcher) { … }` — there is no separate `TestScope` or `StandardTestDispatcher` anywhere in the suite.
