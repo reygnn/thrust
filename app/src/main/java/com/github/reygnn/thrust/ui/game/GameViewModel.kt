@@ -90,6 +90,12 @@ class GameViewModel(
     /** Frame in dem der Turret im TURRETS-Mode zerstört wurde (-1 = noch nicht). */
     private var practiceTurretDestroyedFrame: Long = -1L
     private val practiceRng = Random(System.currentTimeMillis())
+    /**
+     * Pro Practice-Session einmal generierte LevelConfig. Wichtig für TUBE,
+     * dessen Layout per Random gewürfelt wird — bleibt nach Tod gleich, sonst
+     * würde der Spieler bei jedem Reset einen neuen Schlauch lernen müssen.
+     */
+    private var practiceConfig: LevelConfig? = null
 
     val playerGunEnabled: StateFlow<Boolean> = settingsRepository.playerGunEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -237,12 +243,14 @@ class GameViewModel(
         _endlessStreak.value = 0
         practicePodPickupFrame = -1L
         practiceTurretDestroyedFrame = -1L
+        // Layout neu würfeln — bleibt für die Dauer der Session gleich.
+        practiceConfig = PracticeLevels.configFor(kind, practiceRng)
         _state.value = practiceInitialState(kind)
         startLoop()
     }
 
     private fun practiceInitialState(kind: PracticeKind): GameState {
-        val cfg = PracticeLevels.configFor(kind)
+        val cfg = practiceConfig ?: PracticeLevels.configFor(kind, practiceRng).also { practiceConfig = it }
         // Sehr hohe Lives sodass die Engine nie GameOver triggert; bei jedem
         // Tod wird die State im Practice-Frame-Handler ohnehin frisch ersetzt.
         val state = GameState.initial(cfg, lives = PRACTICE_LIVES)
