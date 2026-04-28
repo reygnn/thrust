@@ -289,23 +289,29 @@ class GameViewModel(
     }
 
     /**
-     * Random-Position für den Pod im DELIVERY-Mode — mindestens 1000 Einheiten
-     * vom Pad und 600 Einheiten vom Schiff-Spawn entfernt, damit der Spieler
-     * ein nennenswertes Stück fliegen muss und der Pod nicht zufällig direkt
-     * neben dem Spawn liegt. Margin von 250 zu den Außenwänden.
+     * Random-Position für den Pod im DELIVERY-Mode. Der Pod muss
+     *  - innerhalb des begehbaren Korridors liegen (nicht in/an Decke oder
+     *    Boden — sonst spawn auf einer Wand oder unterhalb des Bodens, was
+     *    nicht erreichbar ist),
+     *  - mindestens 1000 Einheiten vom Pad und 600 vom Schiff entfernt.
+     *
+     * Die DELIVERY-Arena hat innen Decke um y≈260 und Boden um y≈1700; mit
+     * Buffer bleibt der Pod sicher in y∈[350, 1500].
      */
     private fun pickPodTarget(): Vector2 {
         val cfg = practiceConfig ?: return Vector2.Zero
         val padCenter = cfg.landingPad.center
         val shipSpawn = cfg.shipStart
-        val margin = 250f
+        val xMargin = 350f
+        val yMin    = 350f
+        val yMax    = cfg.worldHeight - 500f
         repeat(20) {
-            val x = margin + practiceRng.nextFloat() * (cfg.worldWidth  - 2f * margin)
-            val y = margin + practiceRng.nextFloat() * (cfg.worldHeight - 2f * margin)
+            val x = xMargin + practiceRng.nextFloat() * (cfg.worldWidth - 2f * xMargin)
+            val y = yMin    + practiceRng.nextFloat() * (yMax - yMin)
             val pos = Vector2(x, y)
             if ((pos - padCenter).length() > 1000f && (pos - shipSpawn).length() > 600f) return pos
         }
-        return Vector2(margin, margin)
+        return Vector2(cfg.worldWidth / 2f, (yMin + yMax) / 2f)
     }
 
     fun startEndlessGame(difficulty: Difficulty) {
