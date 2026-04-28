@@ -130,7 +130,12 @@ class GameViewModel(
 
         when {
             practice != null -> {
-                _mode.value  = GameMode.Practice(practice)
+                _mode.value = GameMode.Practice(practice)
+                // Layout muss vor pickPodTarget() bekannt sein, weil das die
+                // Pad-Position aus practiceConfig liest. Daher die Config hier
+                // explizit lazyloaden bevor wir den Pod platzieren.
+                practiceConfig = PracticeLevels.configFor(practice, practiceRng)
+                if (practice == PracticeKind.DELIVERY) practicePodTarget = pickPodTarget()
                 _state.value = practiceInitialState(practice)
             }
             difficulty != null -> {
