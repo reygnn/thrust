@@ -67,6 +67,8 @@ object PracticeLevels {
                 addAll(tubeObstacles(rng, w, segCount, ceilingYs, floorYs, shipStartX))
                 // Volle Pillar-Barrieren mit kleinem vertikalem Durchlass.
                 addAll(tubeFullBarriers(rng, w, segCount, ceilingYs, floorYs, shipStartX))
+                // Frei schwebende Brocken — Rechtecke und Diamanten.
+                addAll(tubeFloatingObstacles(rng, w, segCount, ceilingYs, floorYs, shipStartX))
             },
         )
     }
@@ -170,6 +172,60 @@ object PracticeLevels {
                 out += seg(xR, gapBot, xR, fy)
             }
             x += width + 1500f + rng.nextFloat() * 800f   // nächstes 1500..2300 später
+        }
+        return out
+    }
+
+    /**
+     * Frei schwebende Hindernisse mitten im Korridor — abwechselnd Rechtecke
+     * und Diamanten. Position und Form pro Eintrag zufällig, alle 800..1500
+     * Einheiten verteilt. Padding 100 zu den Wandlinien stellt sicher, dass
+     * ober- und unterhalb des Brockens noch genug Raum für das Schiff bleibt.
+     */
+    private fun tubeFloatingObstacles(
+        rng: Random,
+        w: Float,
+        segCount: Int,
+        ceilingYs: List<Float>,
+        floorYs: List<Float>,
+        shipStartX: Float,
+    ): List<TerrainSegment> {
+        val out = mutableListOf<TerrainSegment>()
+        var x = shipStartX + 1200f
+        while (x < w - 500f) {
+            val midX = x
+            val cy   = yAtX(midX, ceilingYs, segCount, w)
+            val fy   = yAtX(midX, floorYs,   segCount, w)
+            val padding = 100f
+            // Genug lokale Korridor-Höhe damit das Hindernis nicht selber Wand wird.
+            if (fy - cy > 2f * padding + 80f) {
+                val ymin = cy + padding
+                val ymax = fy - padding
+                val cyShape = ymin + rng.nextFloat() * (ymax - ymin)
+                if (rng.nextBoolean()) {
+                    // Achsenparalleles Rechteck
+                    val hw = 25f + rng.nextFloat() * 15f      // 25..40
+                    val hh = 25f + rng.nextFloat() * 15f
+                    val l  = midX - hw; val r = midX + hw
+                    val t  = cyShape - hh; val b = cyShape + hh
+                    out += seg(l, t, r, t)
+                    out += seg(r, t, r, b)
+                    out += seg(r, b, l, b)
+                    out += seg(l, b, l, t)
+                } else {
+                    // Diamant (gedrehtes Quadrat)
+                    val hd = 30f + rng.nextFloat() * 20f      // 30..50
+                    val top   = Vector2(midX,      cyShape - hd)
+                    val right = Vector2(midX + hd, cyShape)
+                    val bot   = Vector2(midX,      cyShape + hd)
+                    val left  = Vector2(midX - hd, cyShape)
+                    out += TerrainSegment(top,   right)
+                    out += TerrainSegment(right, bot)
+                    out += TerrainSegment(bot,   left)
+                    out += TerrainSegment(left,  top)
+                }
+            }
+            x += 800f + rng.nextFloat() * 700f                 // alle 800..1500
         }
         return out
     }
