@@ -1,6 +1,7 @@
 package com.github.reygnn.thrust.ui.game
 
 import com.github.reygnn.thrust.domain.level.Difficulty
+import com.github.reygnn.thrust.domain.level.PracticeKind
 
 /**
  * Aktiver Spielmodus des [GameViewModel].
@@ -17,4 +18,11 @@ sealed interface GameMode {
     data object Story : GameMode
     data class Endless(val difficulty: Difficulty) : GameMode
     data class EndlessFavorite(val difficulty: Difficulty, val seed: Long) : GameMode
+
+    /**
+     * Übungsmodus — kein Score, keine Lives, kein HighScore. Schiff respawnt
+     * automatisch nach Tod oder geschafftem Move; das jeweilige Element
+     * (Pod, Turret) materialisiert nach 2 s an neuer Position.
+     */
+    data class Practice(val kind: PracticeKind) : GameMode
 }

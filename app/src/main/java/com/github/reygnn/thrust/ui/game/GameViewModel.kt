@@ -22,6 +22,8 @@ import com.github.reygnn.thrust.domain.level.Difficulty
 import com.github.reygnn.thrust.domain.level.LevelGenerator
 import com.github.reygnn.thrust.domain.level.LevelRepository
 import com.github.reygnn.thrust.domain.level.LevelRepositoryImpl
+import com.github.reygnn.thrust.domain.level.PracticeKind
+import com.github.reygnn.thrust.domain.level.PracticeLevels
 import com.github.reygnn.thrust.domain.model.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -82,6 +84,13 @@ class GameViewModel(
     /** Aktueller Seed des laufenden Endless-Levels — Retry verwendet ihn wieder. */
     private var currentEndlessSeed: Long = 0L
 
+    // ── Practice-Mode interne State ───────────────────────────────────────────
+    /** Frame in dem der Pod im DOCKING-Mode aufgenommen wurde (-1 = noch nicht). */
+    private var practicePodPickupFrame: Long = -1L
+    /** Frame in dem der Turret im TURRETS-Mode zerstört wurde (-1 = noch nicht). */
+    private var practiceTurretDestroyedFrame: Long = -1L
+    private val practiceRng = Random(System.currentTimeMillis())
+
     val playerGunEnabled: StateFlow<Boolean> = settingsRepository.playerGunEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
@@ -95,23 +104,33 @@ class GameViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WheelSize.MEDIUM)
 
     init {
-        // Wenn die Navigation eine Difficulty mitgegeben hat, starten wir im Endless-
-        // Modus. Optional kann zusätzlich ein Seed mitgegeben werden — dann ist es ein
-        // Favorite-Playthrough (gleicher Seed jedes Mal, ohne Streak-Tracking). Ohne
-        // Difficulty-Argument: Story-Mode (Level 1).
+        // Bootstrapping aus dem SavedStateHandle:
+        // - kind  → Practice-Mode mit dem entsprechenden Drill
+        // - difficulty (+ optional seed) → Endless oder EndlessFavorite
+        // - sonst → Story (Level 1, Default)
+        val practiceArg   = savedStateHandle.get<String>(NAV_ARG_PRACTICE_KIND)
+        val practice      = practiceArg?.let { runCatching { PracticeKind.valueOf(it) }.getOrNull() }
         val difficultyArg = savedStateHandle.get<String>(NAV_ARG_DIFFICULTY)
         val seedArg       = savedStateHandle.get<Long>(NAV_ARG_SEED)
         val difficulty    = difficultyArg?.let { runCatching { Difficulty.valueOf(it) }.getOrNull() }
-        if (difficulty != null) {
-            if (seedArg != null) {
-                currentEndlessSeed = seedArg
-                _mode.value = GameMode.EndlessFavorite(difficulty, seedArg)
-            } else {
-                currentEndlessSeed = seedSource()
-                _mode.value = GameMode.Endless(difficulty)
+
+        when {
+            practice != null -> {
+                _mode.value  = GameMode.Practice(practice)
+                _state.value = practiceInitialState(practice)
             }
-            _state.value = GameState.initial(LevelGenerator.generate(difficulty, currentEndlessSeed))
-            refreshSavedFlag()
+            difficulty != null -> {
+                if (seedArg != null) {
+                    currentEndlessSeed = seedArg
+                    _mode.value = GameMode.EndlessFavorite(difficulty, seedArg)
+                } else {
+                    currentEndlessSeed = seedSource()
+                    _mode.value = GameMode.Endless(difficulty)
+                }
+                _state.value = GameState.initial(LevelGenerator.generate(difficulty, currentEndlessSeed))
+                refreshSavedFlag()
+            }
+            // sonst: Default Story-State aus den Property-Initializern
         }
         startLoop()
     }
@@ -181,6 +200,13 @@ class GameViewModel(
                 // Favorite ist ein One-Shot-Level — kein "next", einfach zurück ans Menü.
                 _navEvents.tryEmit(NavEvent.BackToMenu)
             }
+            is GameMode.Practice -> {
+                // In Practice gibt's kein advance — der Practice-Frame-Handler resettet
+                // bei LevelComplete eigenständig. Falls dieser Pfad doch erreicht wird
+                // (z.B. UI-Race), neu initialisieren statt zum Menü zu springen.
+                _state.value = practiceInitialState(mode.kind)
+                startLoop()
+            }
         }
     }
 
@@ -203,6 +229,28 @@ class GameViewModel(
         _endlessStreak.value = 0
         _state.value = GameState.initial(levelRepository.getLevel(1))
         startLoop()
+    }
+
+    fun startPractice(kind: PracticeKind) {
+        gameLoopJob?.cancel()
+        _mode.value = GameMode.Practice(kind)
+        _endlessStreak.value = 0
+        practicePodPickupFrame = -1L
+        practiceTurretDestroyedFrame = -1L
+        _state.value = practiceInitialState(kind)
+        startLoop()
+    }
+
+    private fun practiceInitialState(kind: PracticeKind): GameState {
+        val cfg = PracticeLevels.configFor(kind)
+        // Sehr hohe Lives sodass die Engine nie GameOver triggert; bei jedem
+        // Tod wird die State im Practice-Frame-Handler ohnehin frisch ersetzt.
+        val state = GameState.initial(cfg, lives = PRACTICE_LIVES)
+        // LANDING: Pod startet als "delivered" damit erfolgreiche Landungen
+        // LevelComplete triggern, das wir dann zum Reset nutzen.
+        return if (kind == PracticeKind.LANDING) {
+            state.copy(fuelPod = state.fuelPod.copy(isDelivered = true))
+        } else state
     }
 
     fun startEndlessGame(difficulty: Difficulty) {
@@ -259,6 +307,7 @@ class GameViewModel(
         is GameMode.Endless         -> mode.difficulty
         is GameMode.EndlessFavorite -> mode.difficulty
         GameMode.Story              -> null
+        is GameMode.Practice        -> null
     }
 
     private fun refreshSavedFlag() {
@@ -298,25 +347,27 @@ class GameViewModel(
                 val current = _state.value
                 if (current.phase != GamePhase.Playing) break
 
+                val mode = _mode.value
+                val effectiveGun = effectivePlayerGun(mode)
                 val nextRaw = physicsEngine.update(
                     state            = current,
                     input            = _input.value,
-                    playerGunEnabled = playerGunEnabled.value,
+                    playerGunEnabled = effectiveGun,
                 )
 
-                // Endless-Spezialfall: in dem Frame, in dem das Schiff wiederbelebt wird,
-                // verwerfen wir den engine-eigenen In-Place-Respawn und spielen das Level
-                // komplett frisch ein (Pod, Türme, Geschosse alles zurückgesetzt). So ist
-                // ein Tod in Endless ein echtes "neues Game mit selbem Level".
-                val justRevived = !current.ship.isAlive && nextRaw.ship.isAlive
-                val next = if (_mode.value is GameMode.Endless && justRevived && nextRaw.phase == GamePhase.Playing) {
-                    GameState.initial(
-                        config = current.levelConfig,
-                        score  = nextRaw.score,
-                        lives  = nextRaw.lives,
-                    )
-                } else {
-                    nextRaw
+                val next = when {
+                    // Endless-Spezialfall: in dem Frame, in dem das Schiff wiederbelebt wird,
+                    // verwerfen wir den engine-eigenen In-Place-Respawn und spielen das Level
+                    // komplett frisch ein (Pod, Türme, Geschosse alles zurückgesetzt).
+                    mode is GameMode.Endless &&
+                            !current.ship.isAlive && nextRaw.ship.isAlive &&
+                            nextRaw.phase == GamePhase.Playing ->
+                        GameState.initial(current.levelConfig, score = nextRaw.score, lives = nextRaw.lives)
+
+                    mode is GameMode.Practice ->
+                        handlePracticeFrame(mode.kind, current, nextRaw)
+
+                    else -> nextRaw
                 }
                 _state.value = next
 
@@ -330,14 +381,115 @@ class GameViewModel(
         }
     }
 
+    private fun effectivePlayerGun(mode: GameMode): Boolean =
+        if (mode is GameMode.Practice && mode.kind == PracticeKind.TURRETS) true
+        else playerGunEnabled.value
+
+    /**
+     * Practice-spezifische Nachbearbeitung pro Frame:
+     * - Tod oder erfolgreiche Landung → Level frisch initialisieren
+     * - TUBE: bei Annäherung an die rechte Wand zurück an den Start teleportieren
+     * - DOCKING: 2 s nach Pickup Pod abhängen und an neuer Position materialisieren
+     * - TURRETS: 2 s nach Abschuss neuen Turret an neuer Position einsetzen
+     */
+    private fun handlePracticeFrame(kind: PracticeKind, current: GameState, next: GameState): GameState {
+        // Tod → frischer Level-Reset
+        val justDied = current.ship.isAlive && !next.ship.isAlive
+        if (justDied) {
+            practicePodPickupFrame = -1L
+            practiceTurretDestroyedFrame = -1L
+            return practiceInitialState(kind)
+        }
+        // Erfolgreiche Landung (LANDING-Mode) → Reset
+        if (next.phase is GamePhase.LevelComplete) {
+            practicePodPickupFrame = -1L
+            practiceTurretDestroyedFrame = -1L
+            return practiceInitialState(kind)
+        }
+
+        var working = next
+        when (kind) {
+            PracticeKind.TUBE -> {
+                val w = working.levelConfig.worldWidth
+                if (working.ship.position.x > w - 200f && working.ship.velocity.x > 0f) {
+                    val cfg = working.levelConfig
+                    working = working.copy(
+                        ship = working.ship.copy(
+                            position = cfg.shipStart,
+                            velocity = Vector2.Zero,
+                            angle    = cfg.shipStartAngle,
+                        ),
+                    )
+                }
+            }
+            PracticeKind.DOCKING -> {
+                if (!current.fuelPod.isPickedUp && working.fuelPod.isPickedUp) {
+                    practicePodPickupFrame = working.frameCount
+                }
+                if (practicePodPickupFrame >= 0 &&
+                    working.frameCount - practicePodPickupFrame >= PRACTICE_RESPAWN_FRAMES
+                ) {
+                    val newPos = randomArenaPosition(working.levelConfig)
+                    working = working.copy(
+                        ship    = working.ship.copy(hasPod = false),
+                        fuelPod = FuelPod(position = newPos),
+                    )
+                    practicePodPickupFrame = -1L
+                }
+            }
+            PracticeKind.TURRETS -> {
+                val justDestroyed = current.turrets.zip(working.turrets)
+                    .any { (c, w) -> !c.isDestroyed && w.isDestroyed }
+                if (justDestroyed) {
+                    practiceTurretDestroyedFrame = working.frameCount
+                }
+                if (practiceTurretDestroyedFrame >= 0 &&
+                    working.frameCount - practiceTurretDestroyedFrame >= PRACTICE_RESPAWN_FRAMES &&
+                    working.turrets.isNotEmpty()
+                ) {
+                    val originalCfg = working.turrets.first().config
+                    val newPos = randomArenaPosition(working.levelConfig)
+                    val newTurret = Turret(
+                        config         = originalCfg.copy(position = newPos),
+                        cooldownFrames = originalCfg.firePeriodFrames,
+                        isDestroyed    = false,
+                    )
+                    working = working.copy(turrets = listOf(newTurret))
+                    practiceTurretDestroyedFrame = -1L
+                }
+            }
+            PracticeKind.LANDING -> { /* nur Tod/LevelComplete-Reset oben */ }
+        }
+        return working
+    }
+
+    /**
+     * Zufällige Position innerhalb der Arena mit Sicherheitsabstand zu den
+     * Wänden. Funktioniert für Practice-Levels die ein offenes Innenraum-
+     * Layout haben (DOCKING, TURRETS).
+     */
+    private fun randomArenaPosition(cfg: LevelConfig): Vector2 {
+        val margin = 250f
+        val x = margin + practiceRng.nextFloat() * (cfg.worldWidth  - 2f * margin)
+        val y = margin + practiceRng.nextFloat() * (cfg.worldHeight - 2f * margin)
+        return Vector2(x, y)
+    }
+
     override fun onCleared() {
         super.onCleared()
         gameLoopJob?.cancel()
     }
 
     companion object {
-        const val NAV_ARG_DIFFICULTY = "difficulty"
-        const val NAV_ARG_SEED       = "seed"
+        const val NAV_ARG_DIFFICULTY    = "difficulty"
+        const val NAV_ARG_SEED          = "seed"
+        const val NAV_ARG_PRACTICE_KIND = "kind"
+
+        /** Arbiträr hoch — verhindert dass der Engine in Practice GameOver triggert. */
+        private const val PRACTICE_LIVES = 999_999
+
+        /** 2 Sekunden bei 60 fps — Pod- bzw. Turret-Respawn-Delay in Practice. */
+        private const val PRACTICE_RESPAWN_FRAMES = 120L
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {

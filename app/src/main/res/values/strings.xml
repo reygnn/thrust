@@ -83,6 +83,20 @@
 
     <!-- LevelComplete: in Favorite mode the button just goes back to menu -->
     <string name="level_complete_done">Menu</string>
+
+    <!-- Practice modes (skill drills, no score, no lives) -->
+    <string name="menu_practice">PRACTICE</string>
+    <string name="practice_title">PRACTICE</string>
+    <string name="practice_subtitle">Skill drills. No score, no lives, no end.</string>
+    <string name="practice_back">Back</string>
+    <string name="practice_tube_title">Tube</string>
+    <string name="practice_tube_desc">Endless corridor. Just fly.</string>
+    <string name="practice_docking_title">Docking</string>
+    <string name="practice_docking_desc">Pickup. 2 s later the pod respawns elsewhere.</string>
+    <string name="practice_landing_title">Landing</string>
+    <string name="practice_landing_desc">Touch down. Reset. Repeat.</string>
+    <string name="practice_turrets_title">Turrets</string>
+    <string name="practice_turrets_desc">Cannon on. Shoot it. Turret moves.</string>
     <string name="endless_stat_turrets">Turrets %1$d–%2$d</string>
     <string name="endless_stat_barriers">Barriers %1$d–%2$d</string>
     <string name="endless_stat_gravity">Gravity %1$s</string>

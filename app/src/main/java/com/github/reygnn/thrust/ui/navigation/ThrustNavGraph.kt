@@ -14,6 +14,7 @@ import com.github.reygnn.thrust.ui.game.GameViewModel
 import com.github.reygnn.thrust.ui.highscore.HighScoreScreen
 import com.github.reygnn.thrust.ui.menu.MenuScreen
 import com.github.reygnn.thrust.ui.options.OptionsScreen
+import com.github.reygnn.thrust.ui.practice.PracticePickerScreen
 
 private const val ROUTE_MENU              = "menu"
 private const val ROUTE_GAME              = "game"
@@ -27,6 +28,9 @@ private const val ROUTE_GAME_ENDLESS      = "game_endless/{difficulty}"
 // Favorite-Variante: zusätzlich der Seed im Pfad — das VM erkennt daran
 // EndlessFavorite-Mode (Streak wird nicht gezählt).
 private const val ROUTE_GAME_ENDLESS_FAV  = "game_endless_fav/{difficulty}/{seed}"
+// Practice-Routes: Picker und Game (mit kind im Pfad)
+private const val ROUTE_PRACTICE_PICKER   = "practice"
+private const val ROUTE_GAME_PRACTICE     = "game_practice/{kind}"
 
 @Composable
 fun ThrustNavGraph(modifier: Modifier = Modifier) {
@@ -39,10 +43,34 @@ fun ThrustNavGraph(modifier: Modifier = Modifier) {
     ) {
         composable(ROUTE_MENU) {
             MenuScreen(
-                onStartGame    = { navController.navigate(ROUTE_GAME) },
-                onStartEndless = { navController.navigate(ROUTE_ENDLESS_PICKER) },
-                onHighScores   = { navController.navigate(ROUTE_HIGHSCORE) },
-                onOptions      = { navController.navigate(ROUTE_OPTIONS) },
+                onStartGame     = { navController.navigate(ROUTE_GAME) },
+                onStartEndless  = { navController.navigate(ROUTE_ENDLESS_PICKER) },
+                onStartPractice = { navController.navigate(ROUTE_PRACTICE_PICKER) },
+                onHighScores    = { navController.navigate(ROUTE_HIGHSCORE) },
+                onOptions       = { navController.navigate(ROUTE_OPTIONS) },
+            )
+        }
+
+        composable(ROUTE_PRACTICE_PICKER) {
+            PracticePickerScreen(
+                onPick = { kind -> navController.navigate("game_practice/${kind.name}") },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route     = ROUTE_GAME_PRACTICE,
+            arguments = listOf(navArgument(GameViewModel.NAV_ARG_PRACTICE_KIND) { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val vm = androidx.lifecycle.viewmodel.compose.viewModel<GameViewModel>(
+                viewModelStoreOwner = backStackEntry,
+                factory             = GameViewModel.Factory,
+            )
+            GameScreen(
+                onNavigateBack = {
+                    navController.popBackStack(ROUTE_MENU, inclusive = false)
+                },
+                vm = vm,
             )
         }
 

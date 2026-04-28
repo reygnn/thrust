@@ -83,6 +83,20 @@
 
     <!-- LevelComplete: im Favorite-Mode führt der Button nur zum Menü -->
     <string name="level_complete_done">Menü</string>
+
+    <!-- Practice modes (Übungs-Modi, kein Score, keine Lives) -->
+    <string name="menu_practice">PRACTICE</string>
+    <string name="practice_title">PRACTICE</string>
+    <string name="practice_subtitle">Übungs-Modi. Kein Score, keine Lives, kein Ende.</string>
+    <string name="practice_back">Zurück</string>
+    <string name="practice_tube_title">Tube</string>
+    <string name="practice_tube_desc">Endloser Schlauch. Einfach fliegen.</string>
+    <string name="practice_docking_title">Docking</string>
+    <string name="practice_docking_desc">Pickup. 2 s später erscheint der Pod woanders.</string>
+    <string name="practice_landing_title">Landing</string>
+    <string name="practice_landing_desc">Sanft aufsetzen. Reset. Nochmal.</string>
+    <string name="practice_turrets_title">Turrets</string>
+    <string name="practice_turrets_desc">Bordkanone aktiv. Abschießen. Turret wandert.</string>
     <string name="endless_stat_turrets">Türme %1$d–%2$d</string>
     <string name="endless_stat_barriers">Barrieren %1$d–%2$d</string>
     <string name="endless_stat_gravity">Schwerkraft %1$s</string>

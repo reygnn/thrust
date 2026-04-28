@@ -67,13 +67,15 @@ fun GameScreen(
     val isEndless          = mode is GameMode.Endless
     val isEndlessFavorite  = mode is GameMode.EndlessFavorite
     val isAnyEndless       = isEndless || isEndlessFavorite
+    val isPractice         = mode is GameMode.Practice
 
     Box(modifier = Modifier.fillMaxSize()) {
         GameCanvas(state = state)
         GameHud(
-            state    = state,
-            streak   = if (isEndless) streak else null,
-            modifier = Modifier.align(Alignment.TopStart),
+            state      = state,
+            streak     = if (isEndless) streak else null,
+            isPractice = isPractice,
+            modifier   = Modifier.align(Alignment.TopStart),
         )
 
         IconButton(
@@ -191,7 +193,12 @@ private fun ChaosDisclaimer(modifier: Modifier = Modifier) {
 // ── HUD ───────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun GameHud(state: GameState, streak: Int? = null, modifier: Modifier = Modifier) {
+private fun GameHud(
+    state: GameState,
+    streak: Int? = null,
+    isPractice: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier
             .padding(12.dp)
@@ -211,14 +218,16 @@ private fun GameHud(state: GameState, streak: Int? = null, modifier: Modifier = 
                 color = ThrustGold,
             )
         }
-        Text(
-            text  = stringResource(R.string.hud_score, state.score),
-            style = MaterialTheme.typography.titleMedium,
-            color = Color.White,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            repeat(state.lives.coerceAtLeast(0)) {
-                Text("▲", color = ThrustGreen, style = MaterialTheme.typography.bodyLarge)
+        if (!isPractice) {
+            Text(
+                text  = stringResource(R.string.hud_score, state.score),
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                repeat(state.lives.coerceAtLeast(0)) {
+                    Text("▲", color = ThrustGreen, style = MaterialTheme.typography.bodyLarge)
+                }
             }
         }
         val fuelPct = (state.ship.fuel / PhysicsConstants.INITIAL_FUEL).coerceIn(0f, 1f)
