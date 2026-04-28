@@ -31,7 +31,38 @@ object LevelGenerator {
     /** Sentinel-ID für Endless-Levels. Story-Mode beginnt bei 1, daher 0 sicher. */
     const val ENDLESS_LEVEL_ID: Int = 0
 
+    /**
+     * Maximale Versuchszahl für die Pure-Chaos-Pod-Erreichbarkeitsschleife.
+     * Bei einer pessimistisch geschätzten Trefferquote von ~50% pro Versuch
+     * ist die Wahrscheinlichkeit, dass alle 30 Versuche fehlschlagen, < 10⁻⁹.
+     */
+    private const val MAX_POD_REACH_ATTEMPTS = 30
+
+    /**
+     * Erzeugt einen Endless-Level. Für Pure Chaos garantiert: der Pod ist
+     * vom Schiff aus geometrisch erreichbar (BFS-Check). Findet keine der
+     * [MAX_POD_REACH_ATTEMPTS] Seed-Permutationen ein erreichbares Layout,
+     * wird die letzte Variante zurückgegeben (in der Praxis nie der Fall).
+     *
+     * Pad-Erreichbarkeit ist in Pure Chaos weiter optional — der Disclaimer
+     * weist explizit darauf hin.
+     */
     fun generate(difficulty: Difficulty, seed: Long): LevelConfig {
+        if (difficulty != Difficulty.PURE_CHAOS) return generateOnce(difficulty, seed)
+
+        var s = seed
+        var lastCfg: LevelConfig = generateOnce(difficulty, s)
+        if (LevelPlayability.isPodReachableFromShip(lastCfg)) return lastCfg
+        repeat(MAX_POD_REACH_ATTEMPTS - 1) {
+            // Einfache Seed-Permutation; bleibt deterministisch zu (difficulty, seed).
+            s = s * 0x5DEECE66DL + 0xBL
+            lastCfg = generateOnce(difficulty, s)
+            if (LevelPlayability.isPodReachableFromShip(lastCfg)) return lastCfg
+        }
+        return lastCfg
+    }
+
+    private fun generateOnce(difficulty: Difficulty, seed: Long): LevelConfig {
         val rng = Random(seed)
         val w = difficulty.worldWidth
         val h = difficulty.worldHeight
