@@ -31,47 +31,43 @@ object PracticeLevels {
 
     private fun tube(rng: Random): LevelConfig {
         val w = 10000f; val h = 1500f
-        // Decke/Boden-Mittellinien — stark wellig, Amplitude bis ±100 vom
-        // Basisniveau. Ergibt einen lebendigen Schlauch (Decke 200..400,
-        // Boden 1100..1300).
-        val ceilingBase = 300f
-        val floorBase   = 1200f
-        val ampl        = 100f
-        val segCount    = 40
-        val ceilingYs   = randomWalk(rng, segCount + 1, ceilingBase, ampl)
-        val floorYs     = randomWalk(rng, segCount + 1, floorBase, ampl)
+        val segCount = 50
+        val shipStartX = 400f
+        // Centerline wandert stark (±250 vom Basis 750), Korridor-Halbhöhe
+        // schwankt zwischen 200 und 300 — Korridor 400..600 breit, der Spieler
+        // kann nicht einfach mit vollem Schub geradeaus düsen.
+        val centerYs = randomWalk(rng, segCount + 1, base = 750f, ampl = 250f).toMutableList()
+        val halfHs   = randomWalk(rng, segCount + 1, base = 250f, ampl = 50f)
+        // Ersten paar Segmente um den Spawn fixieren, sonst kann das Schiff
+        // direkt im Terrain landen.
+        for (i in 0..2) centerYs[i] = 750f
+        val ceilingYs = centerYs.zip(halfHs) { c, hh -> c - hh }
+        val floorYs   = centerYs.zip(halfHs) { c, hh -> c + hh }
 
         return LevelConfig(
             id              = PRACTICE_LEVEL_ID,
             name            = PracticeKind.TUBE.displayName,
             worldWidth      = w,
             worldHeight     = h,
-            gravity         = 0.030f,
-            shipStart       = Vector2(400f, 750f),
+            // Gravity hochgezogen — gleiten reicht nicht mehr, der Spieler
+            // muss aktiv Schub und Lage managen.
+            gravity         = 0.050f,
+            shipStart       = Vector2(shipStartX, 750f),
             fuelPodPosition = UNUSED_POSITION,
             landingPad      = UNUSED_PAD,
             terrain         = buildList {
                 addAll(outerWalls(w, h))
-                // Wellige Decke
+                // Wellige Decke und Boden (Centerline + Halbhöhe).
                 for (i in 0 until segCount) {
                     val xa = i * w / segCount
                     val xb = (i + 1) * w / segCount
                     add(seg(xa, ceilingYs[i], xb, ceilingYs[i + 1]))
+                    add(seg(xa, floorYs[i],   xb, floorYs[i + 1]))
                 }
-                // Welliger Boden
-                for (i in 0 until segCount) {
-                    val xa = i * w / segCount
-                    val xb = (i + 1) * w / segCount
-                    add(seg(xa, floorYs[i], xb, floorYs[i + 1]))
-                }
-                // Hindernisse — Stalaktiten und Stalagmiten dicht gestreut.
-                addAll(tubeObstacles(
-                    rng         = rng,
-                    w           = w,
-                    ceilingMaxY = ceilingBase + ampl,
-                    floorMinY   = floorBase   - ampl,
-                    shipStartX  = 400f,
-                ))
+                // Lokale Stalaktiten/Stalagmiten an den Wandlinien.
+                addAll(tubeObstacles(rng, w, segCount, ceilingYs, floorYs, shipStartX))
+                // Volle Pillar-Barrieren mit kleinem vertikalem Durchlass.
+                addAll(tubeFullBarriers(rng, w, segCount, ceilingYs, floorYs, shipStartX))
             },
         )
     }
@@ -86,45 +82,95 @@ object PracticeLevels {
         for (i in 0 until count) {
             out.add(y.coerceIn(base - ampl, base + ampl))
             y += (rng.nextFloat() - 0.5f) * ampl * 0.5f
-            // Sanftes Pull-zur-Mitte gegen Drift
-            y += (base - y) * 0.05f
+            y += (base - y) * 0.05f   // sanftes Pull-zur-Mitte
         }
         return out
     }
 
+    private fun yAtX(x: Float, ys: List<Float>, segCount: Int, w: Float): Float {
+        val frac = (x / w) * segCount
+        val i    = frac.toInt().coerceIn(0, segCount - 1)
+        val t    = frac - i
+        return ys[i] * (1f - t) + ys[i + 1] * t
+    }
+
     /**
-     * Streut Stalaktiten und Stalagmiten alle 300..650 Einheiten entlang des
-     * Schlauchs. Erstes Hindernis erst rechts vom Schiff-Spawn damit der
-     * Spieler nicht direkt am Start gegen eine Wand fliegt.
+     * Lokale Stalaktiten und Stalagmiten alle 250..500 Einheiten — abwechselnd
+     * zufällig. Ankerpunkt ist die jeweilige wellige Wand, der Hindernis-Tip
+     * ragt 100..300 in den Korridor hinein.
      */
     private fun tubeObstacles(
         rng: Random,
         w: Float,
-        ceilingMaxY: Float,
-        floorMinY: Float,
+        segCount: Int,
+        ceilingYs: List<Float>,
+        floorYs: List<Float>,
         shipStartX: Float,
     ): List<TerrainSegment> {
         val out = mutableListOf<TerrainSegment>()
         var x = shipStartX + 600f
         while (x < w - 400f) {
-            val width = 50f + rng.nextFloat() * 100f          // 50..150
+            val width = 50f + rng.nextFloat() * 100f      // 50..150
             val xL    = x
             val xR    = x + width
-            val depth = 120f + rng.nextFloat() * 280f         // 120..400
+            val midX  = (xL + xR) / 2f
+            val depth = 100f + rng.nextFloat() * 200f     // 100..300
             if (rng.nextBoolean()) {
-                // Stalaktit von der Decke (Tip-y wächst nach unten)
-                val tipY = ceilingMaxY + depth
-                out += seg(xL, ceilingMaxY, xL, tipY)
-                out += seg(xL, tipY,        xR, tipY)
-                out += seg(xR, tipY,        xR, ceilingMaxY)
+                val anchor = yAtX(midX, ceilingYs, segCount, w)
+                val tipY   = anchor + depth
+                out += seg(xL, anchor, xL, tipY)
+                out += seg(xL, tipY,   xR, tipY)
+                out += seg(xR, tipY,   xR, anchor)
             } else {
-                // Stalagmit vom Boden
-                val tipY = floorMinY - depth
-                out += seg(xL, floorMinY,   xL, tipY)
-                out += seg(xL, tipY,        xR, tipY)
-                out += seg(xR, tipY,        xR, floorMinY)
+                val anchor = yAtX(midX, floorYs, segCount, w)
+                val tipY   = anchor - depth
+                out += seg(xL, anchor, xL, tipY)
+                out += seg(xL, tipY,   xR, tipY)
+                out += seg(xR, tipY,   xR, anchor)
             }
-            x += xR - xL + 250f + rng.nextFloat() * 400f      // nächstes 250..650 später
+            x += width + 200f + rng.nextFloat() * 300f    // nächstes 200..500 später
+        }
+        return out
+    }
+
+    /**
+     * Volle Pillar-Barrieren von Decke zu Boden mit einem vertikalen Durchlass —
+     * der Schlauch wird stellenweise zum Schlüsselloch. Alle 1500..2300 Einheiten,
+     * Durchlass-Höhe 180..280.
+     */
+    private fun tubeFullBarriers(
+        rng: Random,
+        w: Float,
+        segCount: Int,
+        ceilingYs: List<Float>,
+        floorYs: List<Float>,
+        shipStartX: Float,
+    ): List<TerrainSegment> {
+        val out = mutableListOf<TerrainSegment>()
+        var x = shipStartX + 1800f
+        while (x < w - 1000f) {
+            val width = 60f + rng.nextFloat() * 60f       // 60..120
+            val xL    = x
+            val xR    = x + width
+            val midX  = (xL + xR) / 2f
+            val cy    = yAtX(midX, ceilingYs, segCount, w)
+            val fy    = yAtX(midX, floorYs,   segCount, w)
+            val gapH  = 180f + rng.nextFloat() * 100f     // 180..280
+            val gapMin = cy + 80f
+            val gapMax = fy - 80f - gapH
+            if (gapMax > gapMin) {
+                val gapTop = gapMin + rng.nextFloat() * (gapMax - gapMin)
+                val gapBot = gapTop + gapH
+                // Stalaktit-Hälfte
+                out += seg(xL, cy,     xL, gapTop)
+                out += seg(xL, gapTop, xR, gapTop)
+                out += seg(xR, gapTop, xR, cy)
+                // Stalagmit-Hälfte
+                out += seg(xL, fy,     xL, gapBot)
+                out += seg(xL, gapBot, xR, gapBot)
+                out += seg(xR, gapBot, xR, fy)
+            }
+            x += width + 1500f + rng.nextFloat() * 800f   // nächstes 1500..2300 später
         }
         return out
     }
@@ -155,18 +201,22 @@ object PracticeLevels {
     // ── Landing ───────────────────────────────────────────────────────────────
 
     private fun landing(): LevelConfig {
-        val w = 2500f; val h = 2000f
-        val padCenterX = w / 2f
-        val padHalfWidth = 220f
+        val w = 3000f; val h = 2000f
+        val padCenterX = 2500f          // weit rechts unten
+        val padHalfWidth = 200f
         val floorY = 1700f
+        val shipStartX = 400f           // weit links oben — Diagonale zum Pad
+        val shipStartY = 350f
         return LevelConfig(
             id              = PRACTICE_LEVEL_ID,
             name            = PracticeKind.LANDING.displayName,
             worldWidth      = w,
             worldHeight     = h,
             gravity         = 0.045f,
-            shipStart       = Vector2(padCenterX, 350f),
-            fuelPodPosition = UNUSED_POSITION,
+            shipStart       = Vector2(shipStartX, shipStartY),
+            // Pod hängt zu Beginn am Schiff — Position wird im VM beim Start
+            // ohnehin überschrieben. Hier nur ein sinnvoller Initialwert.
+            fuelPodPosition = Vector2(shipStartX, shipStartY + 50f),
             landingPad      = LandingPad(Vector2(padCenterX, floorY), padHalfWidth),
             terrain         = buildList {
                 addAll(outerWalls(w, h))

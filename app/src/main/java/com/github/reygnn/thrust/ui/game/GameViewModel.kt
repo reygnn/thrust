@@ -254,11 +254,22 @@ class GameViewModel(
         // Sehr hohe Lives sodass die Engine nie GameOver triggert; bei jedem
         // Tod wird die State im Practice-Frame-Handler ohnehin frisch ersetzt.
         val state = GameState.initial(cfg, lives = PRACTICE_LIVES)
-        // LANDING: Pod startet als "delivered" damit erfolgreiche Landungen
-        // LevelComplete triggern, das wir dann zum Reset nutzen.
-        return if (kind == PracticeKind.LANDING) {
-            state.copy(fuelPod = state.fuelPod.copy(isDelivered = true))
-        } else state
+        return when (kind) {
+            // LANDING: Schiff startet mit Pod am Seil — der Spieler muss erst zum
+            // Pad fliegen, Pod abladen, dann landen. Wie der normale Spielzyklus,
+            // nur in Endlosschleife. Engine triggert LevelComplete bei sanfter
+            // Landung mit isDelivered=true; den Phase-Wechsel mappt der Practice-
+            // Frame-Handler dann zurück auf einen Reset.
+            PracticeKind.LANDING -> state.copy(
+                ship    = state.ship.copy(hasPod = true),
+                fuelPod = state.fuelPod.copy(
+                    position    = state.ship.position + Vector2(0f, 50f),
+                    isPickedUp  = true,
+                    isDelivered = false,
+                ),
+            )
+            else -> state
+        }
     }
 
     fun startEndlessGame(difficulty: Difficulty) {
