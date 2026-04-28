@@ -1,6 +1,7 @@
 package com.github.reygnn.thrust
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -15,6 +16,7 @@ import org.junit.runner.Description
  * without needing explicit yields. All tests share this single dispatcher;
  * never create a separate TestScope or StandardTestDispatcher.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class MainDispatcherRule(
     val dispatcher: TestDispatcher = UnconfinedTestDispatcher(),
 ) : TestWatcher() {
