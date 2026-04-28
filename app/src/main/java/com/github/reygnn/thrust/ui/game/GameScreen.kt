@@ -56,10 +56,17 @@ fun GameScreen(
     val controlMode by vm.controlMode.collectAsStateWithLifecycle()
     val thrustSide  by vm.thrustSide.collectAsStateWithLifecycle()
     val wheelSize   by vm.wheelSize.collectAsStateWithLifecycle()
+    val mode        by vm.mode.collectAsStateWithLifecycle()
+    val streak      by vm.endlessStreak.collectAsStateWithLifecycle()
+    val isEndless   = mode is GameMode.Endless
 
     Box(modifier = Modifier.fillMaxSize()) {
         GameCanvas(state = state)
-        GameHud(state = state, modifier = Modifier.align(Alignment.TopStart))
+        GameHud(
+            state    = state,
+            streak   = if (isEndless) streak else null,
+            modifier = Modifier.align(Alignment.TopStart),
+        )
 
         IconButton(
             onClick  = vm::togglePause,
@@ -104,7 +111,8 @@ fun GameScreen(
             GamePhase.GameOver -> GameOverOverlay(
                 score   = state.score,
                 onQuit  = vm::onGameOverConfirmed,
-                onRetry = vm::restartLevel,
+                onRetry = if (isEndless) vm::retryEndlessLevel else vm::restartLevel,
+                onNext  = if (isEndless) vm::nextEndlessLevel else null,
             )
             GamePhase.Paused -> PausedOverlay(
                 onResume = vm::togglePause,
@@ -118,7 +126,7 @@ fun GameScreen(
 // ── HUD ───────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun GameHud(state: GameState, modifier: Modifier = Modifier) {
+private fun GameHud(state: GameState, streak: Int? = null, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .padding(12.dp)
@@ -131,6 +139,13 @@ private fun GameHud(state: GameState, modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.labelLarge,
             color = ThrustCyan,
         )
+        if (streak != null) {
+            Text(
+                text  = stringResource(R.string.endless_streak, streak),
+                style = MaterialTheme.typography.labelLarge,
+                color = ThrustGold,
+            )
+        }
         Text(
             text  = stringResource(R.string.hud_score, state.score),
             style = MaterialTheme.typography.titleMedium,
@@ -320,7 +335,12 @@ private fun LevelCompleteOverlay(score: Int, levelName: String, onNext: () -> Un
 }
 
 @Composable
-private fun GameOverOverlay(score: Int, onQuit: () -> Unit, onRetry: () -> Unit) {
+private fun GameOverOverlay(
+    score: Int,
+    onQuit: () -> Unit,
+    onRetry: () -> Unit,
+    onNext: (() -> Unit)? = null,
+) {
     Box(
         modifier         = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.72f)),
         contentAlignment = Alignment.Center,
@@ -339,6 +359,9 @@ private fun GameOverOverlay(score: Int, onQuit: () -> Unit, onRetry: () -> Unit)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onQuit, modifier = Modifier.weight(1f))  { Text(stringResource(R.string.game_over_menu)) }
                     Button(onClick = onRetry, modifier = Modifier.weight(1f))         { Text(stringResource(R.string.game_over_retry)) }
+                    if (onNext != null) {
+                        Button(onClick = onNext, modifier = Modifier.weight(1f))      { Text(stringResource(R.string.game_over_next)) }
+                    }
                 }
             }
         }

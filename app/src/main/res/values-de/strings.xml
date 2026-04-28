@@ -55,6 +55,22 @@
     <string name="game_over_final_score">Finaler Score: %1$d</string>
     <string name="game_over_menu">Menü</string>
     <string name="game_over_retry">RETRY</string>
+    <string name="game_over_next">NEXT</string>
+
+    <!-- ── Endless mode (Arcade-Wörter bleiben englisch) ────────────────── -->
+    <string name="menu_endless">ENDLESS</string>
+    <string name="endless_title">ENDLESS MODE</string>
+    <string name="endless_subtitle">Prozedurale Level. Wähle deine Schwierigkeit.</string>
+    <string name="endless_back">Zurück</string>
+    <string name="endless_streak">STREAK %1$d</string>
+    <string name="endless_stat_turrets">Türme %1$d–%2$d</string>
+    <string name="endless_stat_barriers">Barrieren %1$d–%2$d</string>
+    <string name="endless_stat_gravity">Schwerkraft %1$s</string>
+    <string name="endless_grav_low">niedrig</string>
+    <string name="endless_grav_med">mittel</string>
+    <string name="endless_grav_high">hoch</string>
+    <string name="endless_grav_very_high">sehr hoch</string>
+    <string name="endless_grav_brutal">brutal</string>
 
 <string name="options_section_controls">Steuerung</string>
 

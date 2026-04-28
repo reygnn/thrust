@@ -22,10 +22,11 @@ import com.github.reygnn.thrust.ui.theme.ThrustNavy
 
 @Composable
 fun MenuScreen(
-    onStartGame:   () -> Unit,
-    onHighScores:  () -> Unit,
-    onOptions:     () -> Unit,
-    vm:            MenuViewModel = viewModel(factory = MenuViewModel.Factory),
+    onStartGame:    () -> Unit,
+    onStartEndless: () -> Unit,
+    onHighScores:   () -> Unit,
+    onOptions:      () -> Unit,
+    vm:             MenuViewModel = viewModel(factory = MenuViewModel.Factory),
 ) {
     val highScores by vm.highScores.collectAsStateWithLifecycle()
     val totalLevels = Levels.totalLevels
@@ -117,6 +118,16 @@ fun MenuScreen(
                 ) {
                     Text(
                         text  = stringResource(R.string.menu_mission_start),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+
+                Button(
+                    onClick  = onStartEndless,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                ) {
+                    Text(
+                        text  = stringResource(R.string.menu_endless),
                         style = MaterialTheme.typography.titleMedium,
                     )
                 }
