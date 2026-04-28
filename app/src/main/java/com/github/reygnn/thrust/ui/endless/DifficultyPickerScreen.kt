@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -15,6 +16,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.reygnn.thrust.R
 import com.github.reygnn.thrust.domain.level.Difficulty
 import com.github.reygnn.thrust.ui.theme.ThrustCyan
@@ -28,7 +31,10 @@ import com.github.reygnn.thrust.ui.theme.ThrustRed
 fun DifficultyPickerScreen(
     onPick: (Difficulty) -> Unit,
     onBack: () -> Unit,
+    vm:     EndlessPickerViewModel = viewModel(factory = EndlessPickerViewModel.Factory),
 ) {
+    val streaks by vm.streaks.collectAsStateWithLifecycle()
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -55,7 +61,11 @@ fun DifficultyPickerScreen(
                 verticalAlignment     = Alignment.CenterVertically,
             ) {
                 Difficulty.values().forEach { d ->
-                    DifficultyCard(difficulty = d, onClick = { onPick(d) })
+                    DifficultyCard(
+                        difficulty = d,
+                        bestStreak = streaks[d] ?: 0,
+                        onClick    = { onPick(d) },
+                    )
                 }
             }
         }
@@ -70,12 +80,12 @@ fun DifficultyPickerScreen(
 }
 
 @Composable
-private fun DifficultyCard(difficulty: Difficulty, onClick: () -> Unit) {
+private fun DifficultyCard(difficulty: Difficulty, bestStreak: Int, onClick: () -> Unit) {
     val accent = difficulty.accent()
     Box(
         modifier = Modifier
             .width(150.dp)
-            .height(160.dp)
+            .height(180.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White.copy(alpha = 0.06f))
             .border(1.5.dp, accent.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
@@ -107,6 +117,14 @@ private fun DifficultyCard(difficulty: Difficulty, onClick: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.White.copy(alpha = 0.8f),
             )
+            if (bestStreak > 0) {
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text  = stringResource(R.string.endless_best_streak, bestStreak),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = accent,
+                )
+            }
         }
     }
 }

@@ -6,6 +6,7 @@ import com.github.reygnn.thrust.data.ControlMode
 import com.github.reygnn.thrust.data.HighScoreRepository
 import com.github.reygnn.thrust.data.SettingsRepository
 import com.github.reygnn.thrust.data.ThrustSide
+import com.github.reygnn.thrust.data.EndlessHighScoreRepository
 import com.github.reygnn.thrust.data.WheelSize
 import com.github.reygnn.thrust.domain.engine.PhysicsConstants
 import com.github.reygnn.thrust.domain.engine.PhysicsEngine
@@ -35,12 +36,15 @@ class GameViewModelTest {
 
     private val levelRepo: LevelRepository = LevelRepositoryImpl()
     private val highScoreRepo              = mockk<HighScoreRepository>()
+    private val endlessHighScoreRepo       = mockk<EndlessHighScoreRepository>()
     private val settingsRepo               = mockk<SettingsRepository>()
     private val physicsEngine              = PhysicsEngine()
 
     private fun stubRepo() {
         every { highScoreRepo.getHighScores() } returns flowOf(emptyMap())
         coEvery { highScoreRepo.updateHighScore(any(), any()) } just Runs
+        every { endlessHighScoreRepo.getStreaks() } returns flowOf(emptyMap())
+        coEvery { endlessHighScoreRepo.updateStreak(any(), any()) } just Runs
         every { settingsRepo.playerGunEnabled } returns flowOf(false)
         // SettingsRepository hat mehrere Felder, die im VM-Konstruktor sofort
         // via stateIn() konsumiert werden. Alle müssen gestubbt sein, sonst
@@ -55,11 +59,12 @@ class GameViewModelTest {
         engine: PhysicsEngine = physicsEngine,
         seedSource: () -> Long = { 0L },
     ) = GameViewModel(
-        physicsEngine       = engine,
-        levelRepository     = levelRepo,
-        highScoreRepository = highScoreRepo,
-        settingsRepository  = settingsRepo,
-        seedSource          = seedSource,
+        physicsEngine              = engine,
+        levelRepository            = levelRepo,
+        highScoreRepository        = highScoreRepo,
+        endlessHighScoreRepository = endlessHighScoreRepo,
+        settingsRepository         = settingsRepo,
+        seedSource                 = seedSource,
     )
 
     // ── Initial state ─────────────────────────────────────────────────────────
@@ -201,13 +206,14 @@ class GameViewModelTest {
         stubRepo()
         val level4Config = levelRepo.getLevel(4)
         val vm4 = GameViewModel(
-            physicsEngine       = physicsEngine,
-            levelRepository     = object : LevelRepository {
+            physicsEngine              = physicsEngine,
+            levelRepository            = object : LevelRepository {
                 override fun getLevel(id: Int) = level4Config
                 override val totalLevels: Int  = 4
             },
-            highScoreRepository = highScoreRepo,
-            settingsRepository  = settingsRepo,
+            highScoreRepository        = highScoreRepo,
+            endlessHighScoreRepository = endlessHighScoreRepo,
+            settingsRepository         = settingsRepo,
         )
 
         vm4.navEvents.test {
@@ -307,5 +313,18 @@ class GameViewModelTest {
             advanceTimeBy(100)
 
             coVerify(exactly = 0) { highScoreRepo.updateHighScore(any(), any()) }
+        }
+
+    @Test fun `advanceToNextLevel in endless persists streak per difficulty`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            stubRepo()
+            val seeds = ArrayDeque(listOf(1L, 2L, 3L))
+            val vm = buildVm(seedSource = { seeds.removeFirst() })
+            vm.startEndlessGame(Difficulty.MEDIUM)
+
+            vm.onLevelCompleteConfirm()
+            advanceTimeBy(100)
+
+            coVerify { endlessHighScoreRepo.updateStreak(Difficulty.MEDIUM, 1) }
         }
 }

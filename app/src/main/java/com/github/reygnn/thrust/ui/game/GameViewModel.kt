@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.github.reygnn.thrust.ThrustApplication
 import com.github.reygnn.thrust.data.ControlMode
+import com.github.reygnn.thrust.data.EndlessHighScoreRepository
 import com.github.reygnn.thrust.data.HighScoreRepository
 import com.github.reygnn.thrust.data.SettingsRepository
 import com.github.reygnn.thrust.data.ThrustSide
@@ -43,6 +44,7 @@ class GameViewModel(
     private val physicsEngine: PhysicsEngine,
     private val levelRepository: LevelRepository,
     private val highScoreRepository: HighScoreRepository,
+    private val endlessHighScoreRepository: EndlessHighScoreRepository,
     private val settingsRepository: SettingsRepository,
     private val seedSource: () -> Long = { Random.Default.nextLong() },
     savedStateHandle: SavedStateHandle = SavedStateHandle(),
@@ -138,7 +140,11 @@ class GameViewModel(
                 }
             }
             is GameMode.Endless -> {
-                _endlessStreak.update { it + 1 }
+                val newStreak = _endlessStreak.value + 1
+                _endlessStreak.value = newStreak
+                viewModelScope.launch {
+                    endlessHighScoreRepository.updateStreak(mode.difficulty, newStreak)
+                }
                 currentEndlessSeed = seedSource()
                 val nextConfig = LevelGenerator.generate(mode.difficulty, currentEndlessSeed)
                 _state.value = GameState.initial(
@@ -270,11 +276,12 @@ class GameViewModel(
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as ThrustApplication
                 GameViewModel(
-                    physicsEngine       = PhysicsEngine(),
-                    levelRepository     = LevelRepositoryImpl(),
-                    highScoreRepository = app.highScoreRepository,
-                    settingsRepository  = app.settingsRepository,
-                    savedStateHandle    = createSavedStateHandle(),
+                    physicsEngine              = PhysicsEngine(),
+                    levelRepository            = LevelRepositoryImpl(),
+                    highScoreRepository        = app.highScoreRepository,
+                    endlessHighScoreRepository = app.endlessHighScoreRepository,
+                    settingsRepository         = app.settingsRepository,
+                    savedStateHandle           = createSavedStateHandle(),
                 )
             }
         }

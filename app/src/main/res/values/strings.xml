@@ -63,6 +63,7 @@
     <string name="endless_subtitle">Procedural levels. Pick your difficulty.</string>
     <string name="endless_back">Back</string>
     <string name="endless_streak">STREAK %1$d</string>
+    <string name="endless_best_streak">BEST %1$d</string>
     <string name="endless_stat_turrets">Turrets %1$d–%2$d</string>
     <string name="endless_stat_barriers">Barriers %1$d–%2$d</string>
     <string name="endless_stat_gravity">Gravity %1$s</string>
