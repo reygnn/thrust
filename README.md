@@ -51,7 +51,7 @@ Wheel diameter is configurable (S / M / L / XL). Thrust button position can be s
 
 ## Game Modes
 
-Two modes are available from the main menu.
+Three modes are available from the main menu: Mission, Endless, and Practice.
 
 ### Mission (Story)
 
@@ -92,6 +92,18 @@ You can save the current Endless level as a Favorite from the pause menu. Saved 
 
 A Favorite playthrough does **not** count toward the streak (it would amount to level-hopping); when you complete or quit a Favorite, you return to the menu.
 
+### Practice
+
+Skill drills with no score, no lives, no end. Three modes accessible from a separate picker screen:
+
+| Mode | What you practice |
+|------|-------------------|
+| **Tube** | Procedural snaking corridor (10000-wide) with stalactites, stalagmites, full pillar barriers and free-floating rocks. Ship starts with the pod on a rope; gravity is dialed up so you can't just hold thrust. Crash → instant reset to start. |
+| **Delivery** | Open arena. Ship spawns top-left, pad sits bottom-right. Pod materializes at a random position each cycle (≥1000 from pad, ≥600 from ship spawn). Lift off → fetch pod → fly to pad → land. Successful landing kicks off the next cycle with a new pod position. |
+| **Turrets** | Open arena, single turret, player cannon auto-enabled. Destroy the turret → it materializes at a new random position 2 seconds later. |
+
+Lives are effectively infinite; on death the level resets cleanly. Pure muscle-memory training without scoring overhead.
+
 ### Scoring
 
 | Event | Points |
@@ -108,7 +120,7 @@ The ship simulation runs at 60 fps (16 ms frame delay) and obeys the following r
 - **Gravity** pulls the ship downward every frame. Each level has its own gravity constant — it increases with difficulty.
 - **Thrust** applies force in the direction the nose is pointing. It consumes fuel and has no effect when the tank is empty.
 - **Max speed** is capped at 7 units/frame in any direction.
-- **The rope** is a pendulum — the pod swings and builds momentum. Sudden direction changes will throw it wide.
+- **The rope** is a pendulum — the pod swings and builds momentum. Sudden direction changes will throw it wide. If the pod brushes a wall lightly the rope holds and the pod bounces with damping; a hard impact (`|v · n| > 3.5`) snaps the rope and the pod drops. Detached pods fall under gravity, bounce 1–4 times depending on fall height (50% energy retained per bounce), and settle when their speed drops below the threshold. Falling pods cannot be picked up — the player has to wait for them to come to rest.
 - **Landing** requires vertical speed ≤ 2.5 and nose angle ≤ 20° from vertical. Anything outside those tolerances is a crash.
 - **Turrets** track the ship and fire on a per-turret cooldown. Bullets are filtered only by lifetime and world bounds — they pass through terrain (intentional; see `TODO.md`). Turrets sharing the same fire period are deterministically staggered so they don't lock-step fire on the same frame.
 
@@ -123,6 +135,8 @@ Open **Options** from the main menu.
 **Thrust position** *(wheel mode only)* — Left or Right side of the screen.
 
 **Wheel size** *(wheel mode only)* — S (120 dp), M (144 dp, default), L (180 dp), or XL (220 dp).
+
+**Thrust button size** — S (72 dp), M (88 dp, default), L (104 dp), or XL (128 dp). Affects both control modes.
 
 **Player Cannon** — disabled by default.
 
@@ -154,13 +168,15 @@ com.github.reygnn.thrust
 │   │   ├── Levels                  # The four story-mode level definitions
 │   │   ├── Difficulty              # Endless difficulty + generation parameters
 │   │   ├── LevelGenerator          # Seedable procedural level generator
-│   │   └── LevelPlayability        # BFS-based reachability checker
+│   │   ├── LevelPlayability        # BFS-based reachability checker
+│   │   ├── PracticeKind            # Tube / Delivery / Turrets
+│   │   └── PracticeLevels          # Hand-built configs for the practice drills
 │   └── model/
 │       ├── GameModels              # Ship, FuelPod, Bullet, Turret, GameState, …
 │       └── Vector2                 # Lightweight 2D math type
 └── ui/
     ├── game/
-    │   ├── GameMode                # Story / Endless / EndlessFavorite
+    │   ├── GameMode                # Story / Endless / EndlessFavorite / Practice
     │   ├── GameViewModel           # Game loop, input, nav events, mode switching
     │   ├── GameScreen              # Canvas + HUD + controls + overlays
     │   ├── GameCanvas              # DrawScope extensions for all game objects
@@ -170,6 +186,8 @@ com.github.reygnn.thrust
     │   ├── EndlessPickerViewModel
     │   ├── FavoritesScreen         # Manage saved levels
     │   └── FavoritesViewModel
+    ├── practice/
+    │   └── PracticePickerScreen    # 3 practice cards (Tube / Delivery / Turrets)
     ├── menu/         MenuScreen + MenuViewModel
     ├── highscore/    HighScoreScreen + HighScoreViewModel
     ├── options/      OptionsScreen + OptionsViewModel
@@ -231,7 +249,7 @@ The test suite covers the core game logic without any Android dependencies.
 | `CollisionDetectorTest` | Circle/segment intersection, landing success/crash/none, bullet hits |
 | `LevelGeneratorTest` | Determinism per seed, world bounds, parameter ranges, pad gap invariant, pod-x cap |
 | `LevelPlayabilityTest` | BFS reachability — pod for all difficulties (incl. Pure Chaos), pad approach for non-Pure-Chaos |
-| `GameViewModelTest` | Game loop, input handling, pause/resume, nav events, high score & streak saving, Endless modes (regular + favorite), seed propagation |
+| `GameViewModelTest` | Game loop, input handling, pause/resume, nav events, high score & streak saving, Endless modes (regular + favorite), seed propagation, DELIVERY pod-position regressions |
 | `HighScoreRepositoryTest` | Score persistence, update-only-if-higher logic |
 
 All tests use `MainDispatcherRule` with `UnconfinedTestDispatcher` and pass it explicitly to `runTest(mainDispatcherRule.dispatcher) { … }` — there is no separate `TestScope` or `StandardTestDispatcher` anywhere in the suite.
