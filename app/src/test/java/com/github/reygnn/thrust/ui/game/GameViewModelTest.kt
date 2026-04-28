@@ -17,6 +17,7 @@ import com.github.reygnn.thrust.domain.level.Difficulty
 import com.github.reygnn.thrust.domain.level.LevelGenerator
 import com.github.reygnn.thrust.domain.level.LevelRepository
 import com.github.reygnn.thrust.domain.level.LevelRepositoryImpl
+import com.github.reygnn.thrust.domain.level.PracticeKind
 import com.github.reygnn.thrust.domain.model.*
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -407,5 +408,65 @@ class GameViewModelTest {
             vm.retryEndlessLevel()
 
             assertEquals(firstTerrain, vm.state.value.levelConfig.terrain)
+        }
+
+    // ── Practice DELIVERY: Pod-Platzierung ───────────────────────────────────
+
+    private fun deliveryHandle() = androidx.lifecycle.SavedStateHandle().apply {
+        set(GameViewModel.NAV_ARG_PRACTICE_KIND, PracticeKind.DELIVERY.name)
+    }
+
+    /**
+     * Baut ein DELIVERY-VM und pausiert sofort die Game-Loop. Wichtig: der
+     * Practice-Mode hat lives=999_999 und kein GameOver — ohne Pause würde
+     * runTest beim Test-Ende ewig versuchen, die Endlosschleife zu drainen.
+     */
+    private fun buildDeliveryVmPaused(): GameViewModel {
+        val vm = buildVm(savedStateHandle = deliveryHandle())
+        vm.pauseGame()
+        return vm
+    }
+
+    @Test fun `DELIVERY via savedStateHandle places pod off the origin`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            // Regression: pickPodTarget wurde im Init nicht gerufen → Pod blieb
+            // bei (0, 0) in der Außenwand stecken.
+            stubRepo()
+            val vm = buildDeliveryVmPaused()
+            val pod = vm.state.value.fuelPod
+            assertTrue("pod x must be > 100, was ${pod.position.x}", pod.position.x > 100f)
+            assertTrue("pod y must be > 100, was ${pod.position.y}", pod.position.y > 100f)
+        }
+
+    @Test fun `DELIVERY pod always lies inside the playable corridor`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            // Regression: Random-y konnte in [250, 1750] landen, was in der
+            // inneren Decke (~y=260) oder unterhalb des Bodens (y>1700) endet.
+            stubRepo()
+            // Mehrfach instanziieren — practiceRng nutzt System.currentTimeMillis,
+            // damit deckt der Lauf hinreichend viele Seeds ab.
+            repeat(20) {
+                val vm = buildDeliveryVmPaused()
+                val cfg = vm.state.value.levelConfig
+                val pod = vm.state.value.fuelPod
+                assertTrue("pod x in arena bounds: ${pod.position.x}",
+                    pod.position.x in 200f..(cfg.worldWidth  - 200f))
+                assertTrue("pod y in playable corridor: ${pod.position.y}",
+                    pod.position.y in 300f..(cfg.worldHeight - 400f))
+            }
+        }
+
+    @Test fun `DELIVERY pod respects min distance to pad and ship spawn`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            stubRepo()
+            repeat(20) {
+                val vm = buildDeliveryVmPaused()
+                val cfg = vm.state.value.levelConfig
+                val pod = vm.state.value.fuelPod
+                val toPad  = (pod.position - cfg.landingPad.center).length()
+                val toShip = (pod.position - cfg.shipStart).length()
+                assertTrue("pod must be > 1000 from pad: $toPad",  toPad  > 1000f)
+                assertTrue("pod must be > 600 from ship: $toShip", toShip > 600f)
+            }
         }
 }

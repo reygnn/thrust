@@ -511,8 +511,7 @@ class GameViewModel(
 
     /**
      * Zufällige Position innerhalb der Arena mit Sicherheitsabstand zu den
-     * Wänden. Funktioniert für Practice-Levels die ein offenes Innenraum-
-     * Layout haben (DOCKING, TURRETS).
+     * Wänden. Wird im TURRETS-Mode für die Turret-Respawn-Position genutzt.
      */
     private fun randomArenaPosition(cfg: LevelConfig): Vector2 {
         val margin = 250f
