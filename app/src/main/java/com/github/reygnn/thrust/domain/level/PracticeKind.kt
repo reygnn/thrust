@@ -5,12 +5,10 @@ package com.github.reygnn.thrust.domain.level
  * weiter und resettet automatisch nach Tod oder geschafftem Move.
  */
 enum class PracticeKind(val displayName: String) {
-    /** Endloser horizontaler Schlauch — Navigation üben. */
+    /** Endloser Schlauch mit Hindernissen und Engstellen — Navigation üben. */
     TUBE("Tube"),
-    /** Pod aufnehmen, 2 s später materialisiert er an neuer Position. */
-    DOCKING("Docking"),
-    /** Plattform mittig, Schiff respawnt nach erfolgreicher Landung oben. */
-    LANDING("Landing"),
+    /** Pod holen, zum Pad bringen, sanft landen — den vollen Zyklus üben. */
+    DELIVERY("Delivery"),
     /** Einzelner Turret, materialisiert nach Abschuss an neuer Position. */
     TURRETS("Turrets"),
 }

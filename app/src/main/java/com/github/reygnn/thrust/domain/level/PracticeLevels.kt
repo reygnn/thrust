@@ -21,10 +21,9 @@ object PracticeLevels {
     const val PRACTICE_LEVEL_ID: Int = -1
 
     fun configFor(kind: PracticeKind, rng: Random = Random.Default): LevelConfig = when (kind) {
-        PracticeKind.TUBE    -> tube(rng)
-        PracticeKind.DOCKING -> docking()
-        PracticeKind.LANDING -> landing()
-        PracticeKind.TURRETS -> turrets()
+        PracticeKind.TUBE     -> tube(rng)
+        PracticeKind.DELIVERY -> delivery()
+        PracticeKind.TURRETS  -> turrets()
     }
 
     // ── Tube ──────────────────────────────────────────────────────────────────
@@ -175,48 +174,28 @@ object PracticeLevels {
         return out
     }
 
-    // ── Docking ───────────────────────────────────────────────────────────────
+    // ── Delivery (Pickup + Land) ──────────────────────────────────────────────
 
-    private fun docking(): LevelConfig {
+    private fun delivery(): LevelConfig {
         val w = 3000f; val h = 2000f
-        return LevelConfig(
-            id              = PRACTICE_LEVEL_ID,
-            name            = PracticeKind.DOCKING.displayName,
-            worldWidth      = w,
-            worldHeight     = h,
-            gravity         = 0.030f,
-            shipStart       = Vector2(500f, 500f),
-            fuelPodPosition = Vector2(2200f, 1400f),
-            landingPad      = UNUSED_PAD,
-            terrain         = buildList {
-                addAll(outerWalls(w, h))
-                // Sanfte Decke und Boden — nur Außenkanten, ansonsten offene Arena
-                add(seg(0f, 250f, w, 280f))
-                add(seg(0f, 1750f, w, 1730f))
-            },
-            turrets         = emptyList(),
-        )
-    }
-
-    // ── Landing ───────────────────────────────────────────────────────────────
-
-    private fun landing(): LevelConfig {
-        val w = 3000f; val h = 2000f
-        val padCenterX = 2500f          // weit rechts unten
+        val padCenterX = 2400f
         val padHalfWidth = 200f
         val floorY = 1700f
-        val shipStartX = 400f           // weit links oben — Diagonale zum Pad
-        val shipStartY = 350f
+        // Schiff startet ON dem Pad — der VM überschreibt die Position so dass
+        // der Pod beim Start auf der Pad-Höhe sitzt; das eigentliche Spiel
+        // beginnt mit dem Lift-off zum Pod.
+        val shipStartX = padCenterX
+        val shipStartY = floorY - 40f
         return LevelConfig(
             id              = PRACTICE_LEVEL_ID,
-            name            = PracticeKind.LANDING.displayName,
+            name            = PracticeKind.DELIVERY.displayName,
             worldWidth      = w,
             worldHeight     = h,
             gravity         = 0.045f,
             shipStart       = Vector2(shipStartX, shipStartY),
-            // Pod hängt zu Beginn am Schiff — Position wird im VM beim Start
-            // ohnehin überschrieben. Hier nur ein sinnvoller Initialwert.
-            fuelPodPosition = Vector2(shipStartX, shipStartY + 50f),
+            // Initialwert; VM platziert den Pod beim Start an einer
+            // Random-Position weit weg vom Pad.
+            fuelPodPosition = Vector2(500f, 800f),
             landingPad      = LandingPad(Vector2(padCenterX, floorY), padHalfWidth),
             terrain         = buildList {
                 addAll(outerWalls(w, h))

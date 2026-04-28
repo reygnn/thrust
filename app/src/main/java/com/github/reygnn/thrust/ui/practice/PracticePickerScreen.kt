@@ -72,10 +72,9 @@ fun PracticePickerScreen(
 @Composable
 private fun PracticeCard(kind: PracticeKind, onClick: () -> Unit) {
     val (titleRes, descRes) = when (kind) {
-        PracticeKind.TUBE    -> R.string.practice_tube_title    to R.string.practice_tube_desc
-        PracticeKind.DOCKING -> R.string.practice_docking_title to R.string.practice_docking_desc
-        PracticeKind.LANDING -> R.string.practice_landing_title to R.string.practice_landing_desc
-        PracticeKind.TURRETS -> R.string.practice_turrets_title to R.string.practice_turrets_desc
+        PracticeKind.TUBE     -> R.string.practice_tube_title     to R.string.practice_tube_desc
+        PracticeKind.DELIVERY -> R.string.practice_delivery_title to R.string.practice_delivery_desc
+        PracticeKind.TURRETS  -> R.string.practice_turrets_title  to R.string.practice_turrets_desc
     }
     val accent = kind.accent()
     Box(
@@ -108,8 +107,7 @@ private fun PracticeCard(kind: PracticeKind, onClick: () -> Unit) {
 }
 
 private fun PracticeKind.accent(): Color = when (this) {
-    PracticeKind.TUBE    -> ThrustCyan
-    PracticeKind.DOCKING -> ThrustGold
-    PracticeKind.LANDING -> ThrustGreen
-    PracticeKind.TURRETS -> ThrustRed
+    PracticeKind.TUBE     -> ThrustCyan
+    PracticeKind.DELIVERY -> ThrustGreen
+    PracticeKind.TURRETS  -> ThrustRed
 }

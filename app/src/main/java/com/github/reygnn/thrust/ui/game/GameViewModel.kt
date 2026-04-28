@@ -85,8 +85,6 @@ class GameViewModel(
     private var currentEndlessSeed: Long = 0L
 
     // ── Practice-Mode interne State ───────────────────────────────────────────
-    /** Frame in dem der Pod im DOCKING-Mode aufgenommen wurde (-1 = noch nicht). */
-    private var practicePodPickupFrame: Long = -1L
     /** Frame in dem der Turret im TURRETS-Mode zerstört wurde (-1 = noch nicht). */
     private var practiceTurretDestroyedFrame: Long = -1L
     private val practiceRng = Random(System.currentTimeMillis())
@@ -96,6 +94,12 @@ class GameViewModel(
      * würde der Spieler bei jedem Reset einen neuen Schlauch lernen müssen.
      */
     private var practiceConfig: LevelConfig? = null
+    /**
+     * Aktuelle Pod-Position im DELIVERY-Mode. Bleibt nach einem Tod gleich
+     * (Spieler retried denselben Run); wechselt erst nach erfolgreicher
+     * Auslieferung & Landung.
+     */
+    private var practicePodTarget: Vector2 = Vector2.Zero
 
     val playerGunEnabled: StateFlow<Boolean> = settingsRepository.playerGunEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -241,10 +245,10 @@ class GameViewModel(
         gameLoopJob?.cancel()
         _mode.value = GameMode.Practice(kind)
         _endlessStreak.value = 0
-        practicePodPickupFrame = -1L
         practiceTurretDestroyedFrame = -1L
         // Layout neu würfeln — bleibt für die Dauer der Session gleich.
         practiceConfig = PracticeLevels.configFor(kind, practiceRng)
+        if (kind == PracticeKind.DELIVERY) practicePodTarget = pickPodTarget()
         _state.value = practiceInitialState(kind)
         startLoop()
     }
@@ -255,21 +259,37 @@ class GameViewModel(
         // Tod wird die State im Practice-Frame-Handler ohnehin frisch ersetzt.
         val state = GameState.initial(cfg, lives = PRACTICE_LIVES)
         return when (kind) {
-            // LANDING: Schiff startet mit Pod am Seil — der Spieler muss erst zum
-            // Pad fliegen, Pod abladen, dann landen. Wie der normale Spielzyklus,
-            // nur in Endlosschleife. Engine triggert LevelComplete bei sanfter
-            // Landung mit isDelivered=true; den Phase-Wechsel mappt der Practice-
-            // Frame-Handler dann zurück auf einen Reset.
-            PracticeKind.LANDING -> state.copy(
-                ship    = state.ship.copy(hasPod = true),
+            // DELIVERY: Schiff steht auf dem Pad, Pod liegt frei an einer Random-
+            // Position weiter weg. Spieler hebt ab, holt den Pod, bringt ihn zurück
+            // und landet. Engine triggert LevelComplete sobald isDelivered=true und
+            // sanft gelandet — dann wird im Frame-Handler ein neuer Cycle gestartet.
+            PracticeKind.DELIVERY -> state.copy(
                 fuelPod = state.fuelPod.copy(
-                    position    = state.ship.position + Vector2(0f, 50f),
-                    isPickedUp  = true,
+                    position    = practicePodTarget,
+                    isPickedUp  = false,
                     isDelivered = false,
                 ),
             )
             else -> state
         }
+    }
+
+    /**
+     * Random-Position für den Pod im DELIVERY-Mode — mindestens 1000 Einheiten
+     * vom Pad entfernt damit der Spieler ein nennenswertes Stück fliegen muss.
+     * Margin von 250 zu den Außenwänden.
+     */
+    private fun pickPodTarget(): Vector2 {
+        val cfg = practiceConfig ?: return Vector2.Zero
+        val padCenter = cfg.landingPad.center
+        val margin = 250f
+        repeat(20) {
+            val x = margin + practiceRng.nextFloat() * (cfg.worldWidth  - 2f * margin)
+            val y = margin + practiceRng.nextFloat() * (cfg.worldHeight - 2f * margin)
+            val pos = Vector2(x, y)
+            if ((pos - padCenter).length() > 1000f) return pos
+        }
+        return Vector2(margin, margin)
     }
 
     fun startEndlessGame(difficulty: Difficulty) {
@@ -406,23 +426,22 @@ class GameViewModel(
 
     /**
      * Practice-spezifische Nachbearbeitung pro Frame:
-     * - Tod oder erfolgreiche Landung → Level frisch initialisieren
+     * - Tod → Level mit gleichem Cycle-State frisch initialisieren
+     * - LevelComplete in DELIVERY → neuer Pod-Target, frischer Cycle
      * - TUBE: bei Annäherung an die rechte Wand zurück an den Start teleportieren
-     * - DOCKING: 2 s nach Pickup Pod abhängen und an neuer Position materialisieren
      * - TURRETS: 2 s nach Abschuss neuen Turret an neuer Position einsetzen
      */
     private fun handlePracticeFrame(kind: PracticeKind, current: GameState, next: GameState): GameState {
-        // Tod → frischer Level-Reset
+        // Tod → frischer Level-Reset (Cycle-State bleibt: gleicher Pod-Target etc.)
         val justDied = current.ship.isAlive && !next.ship.isAlive
         if (justDied) {
-            practicePodPickupFrame = -1L
             practiceTurretDestroyedFrame = -1L
             return practiceInitialState(kind)
         }
-        // Erfolgreiche Landung (LANDING-Mode) → Reset
+        // Erfolgreiche Landung mit Pod (DELIVERY) → neuer Pod-Target, neuer Cycle
         if (next.phase is GamePhase.LevelComplete) {
-            practicePodPickupFrame = -1L
             practiceTurretDestroyedFrame = -1L
+            if (kind == PracticeKind.DELIVERY) practicePodTarget = pickPodTarget()
             return practiceInitialState(kind)
         }
 
@@ -441,21 +460,7 @@ class GameViewModel(
                     )
                 }
             }
-            PracticeKind.DOCKING -> {
-                if (!current.fuelPod.isPickedUp && working.fuelPod.isPickedUp) {
-                    practicePodPickupFrame = working.frameCount
-                }
-                if (practicePodPickupFrame >= 0 &&
-                    working.frameCount - practicePodPickupFrame >= PRACTICE_RESPAWN_FRAMES
-                ) {
-                    val newPos = randomArenaPosition(working.levelConfig)
-                    working = working.copy(
-                        ship    = working.ship.copy(hasPod = false),
-                        fuelPod = FuelPod(position = newPos),
-                    )
-                    practicePodPickupFrame = -1L
-                }
-            }
+            PracticeKind.DELIVERY -> { /* nur Tod/LevelComplete-Reset oben */ }
             PracticeKind.TURRETS -> {
                 val justDestroyed = current.turrets.zip(working.turrets)
                     .any { (c, w) -> !c.isDestroyed && w.isDestroyed }
@@ -477,7 +482,6 @@ class GameViewModel(
                     practiceTurretDestroyedFrame = -1L
                 }
             }
-            PracticeKind.LANDING -> { /* nur Tod/LevelComplete-Reset oben */ }
         }
         return working
     }
