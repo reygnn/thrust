@@ -1,5 +1,8 @@
 package com.github.reygnn.thrust.ui.game
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -8,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,6 +30,7 @@ import com.github.reygnn.thrust.data.ControlMode
 import com.github.reygnn.thrust.data.ThrustSide
 import com.github.reygnn.thrust.data.WheelSize
 import com.github.reygnn.thrust.domain.engine.PhysicsConstants
+import com.github.reygnn.thrust.domain.level.Difficulty
 import com.github.reygnn.thrust.domain.model.*
 import com.github.reygnn.thrust.ui.theme.ThrustCyan
 import com.github.reygnn.thrust.ui.theme.ThrustGold
@@ -119,6 +124,52 @@ fun GameScreen(
                 onQuit   = vm::onGameOverConfirmed,
             )
             else -> Unit
+        }
+
+        // Pure-Chaos-Disclaimer: einmal pro VM-Lifetime ~4s sichtbar, dann ausgeblendet.
+        // Wird nicht in eine var aus remember umgewandelt, weil der Trigger an
+        // (mode is Pure Chaos) hängt — beim nicht-Endless-Spiel wird gar nichts gerendert.
+        if ((mode as? GameMode.Endless)?.difficulty == Difficulty.PURE_CHAOS) {
+            ChaosDisclaimer(modifier = Modifier.align(Alignment.TopCenter))
+        }
+    }
+}
+
+@Composable
+private fun ChaosDisclaimer(modifier: Modifier = Modifier) {
+    var visible by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        delay(4_000L)
+        visible = false
+    }
+    AnimatedVisibility(
+        visible  = visible,
+        enter    = fadeIn(),
+        exit     = fadeOut(),
+        modifier = modifier.padding(top = 80.dp),
+    ) {
+        Card(
+            colors   = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.78f)),
+            border   = androidx.compose.foundation.BorderStroke(1.5.dp, ThrustRed.copy(alpha = 0.7f)),
+            modifier = Modifier.padding(horizontal = 24.dp),
+        ) {
+            Column(
+                modifier            = Modifier.padding(horizontal = 24.dp, vertical = 14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text  = stringResource(R.string.endless_chaos_disclaimer_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = ThrustRed,
+                )
+                Text(
+                    text      = stringResource(R.string.endless_chaos_disclaimer_body),
+                    style     = MaterialTheme.typography.bodyMedium,
+                    color     = Color.White.copy(alpha = 0.85f),
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 }
