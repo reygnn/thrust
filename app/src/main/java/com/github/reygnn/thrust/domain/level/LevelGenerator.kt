@@ -209,9 +209,11 @@ object LevelGenerator {
             val gapTop  = gapMin + rng.nextFloat() * (gapMax - gapMin)
             val gapBot  = gapTop + gapH
 
-            // Tilt-Stärke: 30 bis 90 Einheiten — genug um sichtbar zu sein, aber
-            // nie so viel dass die Lücke an einer Seite zu eng wird (Min-Höhe ~80).
-            val tilt   = 30f + rng.nextFloat() * 60f
+            // Tilt-Stärke: 60 bis 180 Einheiten — Auslenkung pro Cap-Endpunkt
+            // damit ±30 bis ±90. Bei Funnel und gapH-Min 260 bleibt das schmale
+            // Ende noch ~80 Einheiten breit (Schiffsdurchmesser 36) — passabel,
+            // und der Runtime-Reachability-Check fängt etwaige Engstellen ab.
+            val tilt   = 60f + rng.nextFloat() * 120f
             val shape  = shapes[rng.nextInt(shapes.size)]
             val (gtL, gtR, gbL, gbR) = capCorners(shape, gapTop, gapBot, tilt)
 
