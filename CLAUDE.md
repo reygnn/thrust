@@ -288,6 +288,13 @@ branch.
 
 The branch name proposal is a suggestion; the user gets the final say.
 
+**After a fast-forward merge into `main`:** switch back to `main` and ask the
+user whether the merged branch should be deleted both locally and on the
+remote. Do not delete it silently — even though the commits live on in `main`,
+the user may want to keep the branch around (open PR, ongoing review,
+historical reference). Always confirm before `git branch -d` and especially
+before `git push origin --delete`.
+
 ---
 
 ## What this file is NOT
