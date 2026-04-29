@@ -19,10 +19,13 @@ private val Context.thrustDataStore: DataStore<Preferences> by preferencesDataSt
  * (`hs_level_$level`). Damit skaliert die Persistenz automatisch, wenn neue Level
  * hinzukommen, ohne dass dieser Code angepasst werden muss.
  */
-class HighScoreRepositoryImpl(
-    private val context: Context,
+class HighScoreRepositoryImpl internal constructor(
+    private val dataStore: DataStore<Preferences>,
     private val totalLevels: Int = Levels.totalLevels,
 ) : HighScoreRepository {
+
+    constructor(context: Context, totalLevels: Int = Levels.totalLevels) :
+        this(context.thrustDataStore, totalLevels)
 
     init {
         require(totalLevels > 0) { "totalLevels must be > 0, was $totalLevels" }
@@ -32,7 +35,7 @@ class HighScoreRepositoryImpl(
         (1..totalLevels).associateWith { intPreferencesKey("hs_level_$it") }
 
     override fun getHighScores(): Flow<Map<Int, Int>> =
-        context.thrustDataStore.data.map { prefs ->
+        dataStore.data.map { prefs ->
             keys.mapValues { (_, key) -> prefs[key] ?: 0 }
         }
 
@@ -41,7 +44,7 @@ class HighScoreRepositoryImpl(
             ?: throw IllegalArgumentException(
                 "Unknown level: $level (valid range: 1..$totalLevels)"
             )
-        context.thrustDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val current = prefs[key] ?: 0
             if (score > current) prefs[key] = score
         }

@@ -24,22 +24,25 @@ private val Context.favoritesDataStore: DataStore<Preferences> by preferencesDat
  * Größenbegrenzung: [maxEntries] (default 20). Beim Hinzufügen verdrängen
  * neue Einträge die ältesten (FIFO).
  */
-class EndlessFavoritesRepositoryImpl(
-    private val context: Context,
+class EndlessFavoritesRepositoryImpl internal constructor(
+    private val dataStore: DataStore<Preferences>,
     private val maxEntries: Int = DEFAULT_MAX_ENTRIES,
 ) : EndlessFavoritesRepository {
+
+    constructor(context: Context, maxEntries: Int = DEFAULT_MAX_ENTRIES) :
+        this(context.favoritesDataStore, maxEntries)
 
     init {
         require(maxEntries > 0) { "maxEntries must be > 0, was $maxEntries" }
     }
 
     override fun getFavorites(): Flow<List<EndlessFavorite>> =
-        context.favoritesDataStore.data.map { prefs ->
+        dataStore.data.map { prefs ->
             decode(prefs[KEY] ?: "")
         }
 
     override suspend fun addFavorite(favorite: EndlessFavorite) {
-        context.favoritesDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val current = decode(prefs[KEY] ?: "")
             // Idempotent: gleicher (difficulty, seed) wird nicht doppelt gespeichert.
             if (current.any { it.difficulty == favorite.difficulty && it.seed == favorite.seed }) return@edit
@@ -49,30 +52,30 @@ class EndlessFavoritesRepositoryImpl(
     }
 
     override suspend fun removeFavorite(favorite: EndlessFavorite) {
-        context.favoritesDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val current = decode(prefs[KEY] ?: "")
             val filtered = current.filterNot { it.difficulty == favorite.difficulty && it.seed == favorite.seed }
             if (filtered.size != current.size) prefs[KEY] = encode(filtered)
         }
     }
 
-    private fun encode(list: List<EndlessFavorite>): String =
-        list.joinToString("\n") { "${it.difficulty.name}|${it.seed}|${it.savedAt}" }
-
-    private fun decode(raw: String): List<EndlessFavorite> {
-        if (raw.isBlank()) return emptyList()
-        return raw.split("\n").mapNotNull { line ->
-            val parts = line.split("|")
-            if (parts.size != 3) return@mapNotNull null
-            val d = runCatching { Difficulty.valueOf(parts[0]) }.getOrNull() ?: return@mapNotNull null
-            val s = parts[1].toLongOrNull() ?: return@mapNotNull null
-            val a = parts[2].toLongOrNull() ?: return@mapNotNull null
-            EndlessFavorite(d, s, a)
-        }
-    }
-
     companion object {
         private val KEY = stringPreferencesKey("endless_favorites")
         const val DEFAULT_MAX_ENTRIES = 20
+
+        internal fun encode(list: List<EndlessFavorite>): String =
+            list.joinToString("\n") { "${it.difficulty.name}|${it.seed}|${it.savedAt}" }
+
+        internal fun decode(raw: String): List<EndlessFavorite> {
+            if (raw.isBlank()) return emptyList()
+            return raw.split("\n").mapNotNull { line ->
+                val parts = line.split("|")
+                if (parts.size != 3) return@mapNotNull null
+                val d = runCatching { Difficulty.valueOf(parts[0]) }.getOrNull() ?: return@mapNotNull null
+                val s = parts[1].toLongOrNull() ?: return@mapNotNull null
+                val a = parts[2].toLongOrNull() ?: return@mapNotNull null
+                EndlessFavorite(d, s, a)
+            }
+        }
     }
 }

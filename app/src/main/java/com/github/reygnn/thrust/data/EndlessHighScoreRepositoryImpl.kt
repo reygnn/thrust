@@ -19,21 +19,23 @@ private val Context.endlessDataStore: DataStore<Preferences> by preferencesDataS
  * genau ein Eintrag (`endless_streak_<DIFFICULTY_NAME>`). Damit skaliert die
  * Persistenz automatisch, falls weitere Schwierigkeitsgrade hinzukommen.
  */
-class EndlessHighScoreRepositoryImpl(
-    private val context: Context,
+class EndlessHighScoreRepositoryImpl internal constructor(
+    private val dataStore: DataStore<Preferences>,
 ) : EndlessHighScoreRepository {
+
+    constructor(context: Context) : this(context.endlessDataStore)
 
     private val keys: Map<Difficulty, Preferences.Key<Int>> =
         Difficulty.values().associateWith { intPreferencesKey("endless_streak_${it.name}") }
 
     override fun getStreaks(): Flow<Map<Difficulty, Int>> =
-        context.endlessDataStore.data.map { prefs ->
+        dataStore.data.map { prefs ->
             keys.mapValues { (_, key) -> prefs[key] ?: 0 }
         }
 
     override suspend fun updateStreak(difficulty: Difficulty, streak: Int) {
         val key = keys.getValue(difficulty)
-        context.endlessDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val current = prefs[key] ?: 0
             if (streak > current) prefs[key] = streak
         }

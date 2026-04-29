@@ -262,6 +262,41 @@ class GameViewModelTest {
             coVerify(exactly = 0) { highScoreRepo.updateHighScore(any(), any()) }
         }
 
+    @Test fun `loop persists high score on GameOver in Story mode`() =
+        // CLAUDE.md verlangt: GameOver schreibt genau einmal aus dem Loop.
+        // Bisher nur indirekt durch das Negativ-Pendant `onGameOverConfirm
+        // does NOT save` getestet — hier explizit die positive Seite.
+        runTest(mainDispatcherRule.dispatcher) {
+            stubRepo()
+            val mockEngine = mockk<PhysicsEngine>()
+            every { mockEngine.update(any(), any(), any()) } answers {
+                val s = firstArg<GameState>()
+                s.copy(phase = GamePhase.GameOver, score = 1234)
+            }
+            val vm = buildVm(engine = mockEngine)
+
+            advanceTimeBy(PhysicsConstants.FRAME_DELAY_MS + 1)
+
+            assertEquals(GamePhase.GameOver, vm.state.value.phase)
+            coVerify(exactly = 1) { highScoreRepo.updateHighScore(1, 1234) }
+        }
+
+    @Test fun `loop does NOT persist Story high score on GameOver in Endless mode`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            stubRepo()
+            val mockEngine = mockk<PhysicsEngine>()
+            every { mockEngine.update(any(), any(), any()) } answers {
+                val s = firstArg<GameState>()
+                s.copy(phase = GamePhase.GameOver, score = 1234)
+            }
+            val vm = buildVm(engine = mockEngine, seedSource = { 99L })
+            vm.startEndlessGame(Difficulty.MEDIUM)
+
+            advanceTimeBy(PhysicsConstants.FRAME_DELAY_MS + 1)
+
+            coVerify(exactly = 0) { highScoreRepo.updateHighScore(any(), any()) }
+        }
+
     // ── Endless mode ──────────────────────────────────────────────────────────
 
     @Test fun `startEndlessGame switches mode and loads procedural level`() =
