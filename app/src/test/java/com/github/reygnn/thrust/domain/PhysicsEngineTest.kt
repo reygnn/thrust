@@ -231,6 +231,72 @@ class PhysicsEngineTest {
         assertFalse("ship should lose pod",  after.ship.hasPod)
     }
 
+    @Test fun `pod is restored to start when ship dies in same frame as hard pod-detach`() {
+        // Regression: Hartes Aufschlagen löst den Pod im selben Frame, in dem
+        // das Schiff stirbt. Vorher fragten die Death-Branches `pod.isPickedUp`
+        // erst NACH dem Detach ab — Pod blieb im Level liegen wo er bouncte,
+        // teils unerreichbar. Fix: Frame-Start-Snapshot `podWasAttached` nutzen.
+        val detector = mockk<CollisionDetector>()
+        every { detector.checkShipTerrain(any(), any()) } returns true   // Schiff stirbt
+        every { detector.checkBulletShip(any(), any()) }  returns false
+        every { detector.checkLanding(any(), any()) }     returns CollisionDetector.LandingResult.None
+        every { detector.checkPodPickup(any(), any()) }   returns false
+        every { detector.checkPodDelivery(any(), any()) } returns false
+        every { detector.firstCollidingSegment(any(), any(), any()) } returns floorSegmentBelowPod
+
+        val engine = PhysicsEngine(collisionDetector = detector)
+        val s = baseState().copy(
+            ship    = Ship(position = Vector2(500f, 500f), hasPod = true),
+            fuelPod = FuelPod(
+                position   = Vector2(500f, 500f),
+                velocity   = Vector2(0f, 5f),  // > HARD_HIT_THRESHOLD → Pod reißt im selben Frame
+                isPickedUp = true,
+            ),
+            lives   = 3,
+        )
+        val after = engine.update(s, InputState())
+
+        assertFalse("ship should be dead", after.ship.isAlive)
+        assertEquals(
+            "pod position must be reset to start, not stranded mid-fall",
+            level1.fuelPodPosition, after.fuelPod.position,
+        )
+        assertFalse("pod must not be falling after restore",   after.fuelPod.isFalling)
+        assertFalse("pod must not be picked up after restore", after.fuelPod.isPickedUp)
+        assertFalse("pod must not be delivered after restore", after.fuelPod.isDelivered)
+    }
+
+    @Test fun `pod is restored to start when ship landing-crashes in same frame as hard pod-detach`() {
+        // Gleicher Fix wie oben, aber Death-Branch ist hier der Landing-Crash
+        // (LandingResult.Crash) statt Terrain/Bullet-Hit. Beide Pfade müssen
+        // den Pod auf Start zurücksetzen, wenn der Pod zu Frame-Beginn am Seil
+        // hing — sonst Soft-Lock-Risiko.
+        val detector = mockk<CollisionDetector>()
+        every { detector.checkShipTerrain(any(), any()) } returns false
+        every { detector.checkBulletShip(any(), any()) }  returns false
+        every { detector.checkLanding(any(), any()) }     returns CollisionDetector.LandingResult.Crash
+        every { detector.checkPodPickup(any(), any()) }   returns false
+        every { detector.checkPodDelivery(any(), any()) } returns false
+        every { detector.firstCollidingSegment(any(), any(), any()) } returns floorSegmentBelowPod
+
+        val engine = PhysicsEngine(collisionDetector = detector)
+        val s = baseState().copy(
+            ship    = Ship(position = Vector2(500f, 500f), hasPod = true),
+            fuelPod = FuelPod(
+                position   = Vector2(500f, 500f),
+                velocity   = Vector2(0f, 5f),  // > HARD_HIT_THRESHOLD
+                isPickedUp = true,
+            ),
+            lives   = 3,
+        )
+        val after = engine.update(s, InputState())
+
+        assertFalse("ship should be dead", after.ship.isAlive)
+        assertEquals(level1.fuelPodPosition, after.fuelPod.position)
+        assertFalse(after.fuelPod.isFalling)
+        assertFalse(after.fuelPod.isPickedUp)
+    }
+
     @Test fun `pod-on-rope stays within ROPE_LENGTH when wall sits between ship and pod`() {
         // Regression: Wenn die Wand zwischen Schiff und Pod liegt, drückt
         // bouncePod den Pod weiter weg vom Schiff — ohne nachgelagerte

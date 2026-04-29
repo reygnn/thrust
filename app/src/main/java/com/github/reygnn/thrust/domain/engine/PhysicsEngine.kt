@@ -27,6 +27,13 @@ class PhysicsEngine(
             }
         }
 
+        // Frame-Start-Snapshot: gebraucht für die Death-Branches unten. Wenn der
+        // Pod im selben Frame hart abreißt (isPickedUp wechselt auf false) und
+        // das Schiff danach stirbt, fragen die Death-Pfade `pod.isPickedUp` zu
+        // spät ab und lassen den Pod mitten im Fall stehen statt ihn auf
+        // Startposition zurückzusetzen.
+        val podWasAttached = state.fuelPod.isPickedUp
+
         var ship = applyShipPhysics(state.ship, input, state.levelConfig.gravity)
 
         var pod = when {
@@ -114,7 +121,7 @@ class PhysicsEngine(
             val newLives = state.lives - 1
             return state.copy(
                 ship    = ship.copy(isAlive = false, hasPod = false, respawnTimer = PhysicsConstants.RESPAWN_FRAMES),
-                fuelPod = if (pod.isPickedUp && !pod.isDelivered) FuelPod(position = state.levelConfig.fuelPodPosition) else pod,
+                fuelPod = if (podWasAttached && !pod.isDelivered) FuelPod(position = state.levelConfig.fuelPodPosition) else pod,
                 bullets = remainingBullets.filterNot { it.isEnemy },
                 turrets = updatedTurrets,
                 lives   = newLives,
@@ -157,7 +164,7 @@ class PhysicsEngine(
                 val newLives = state.lives - 1
                 state.copy(
                     ship    = ship.copy(isAlive = false, hasPod = false, respawnTimer = PhysicsConstants.RESPAWN_FRAMES),
-                    fuelPod = if (pod.isPickedUp) FuelPod(position = state.levelConfig.fuelPodPosition) else pod,
+                    fuelPod = if (podWasAttached && !pod.isDelivered) FuelPod(position = state.levelConfig.fuelPodPosition) else pod,
                     bullets = remainingBullets, turrets = updatedTurrets,
                     lives   = newLives,
                     phase   = if (newLives <= 0) GamePhase.GameOver else state.phase,
