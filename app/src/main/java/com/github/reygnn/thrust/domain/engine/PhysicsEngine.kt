@@ -45,7 +45,13 @@ class PhysicsEngine(
                         ship = ship.copy(hasPod = false)
                         bounced.copy(isPickedUp = false, isFalling = true)
                     } else {
-                        bounced
+                        // Liegt die Wand zwischen Schiff und Pod, schiebt der
+                        // Bounce den Pod über die Seillänge hinaus. Ohne erneute
+                        // Constraint snappt das Seil im nächsten Frame zurück in
+                        // dieselbe Wand → Mikro-Oszillation. Hier gleich klemmen.
+                        val (clampedPos, clampedVel) =
+                            applyRopeConstraint(bounced.position, bounced.velocity, ship.position)
+                        bounced.copy(position = clampedPos, velocity = clampedVel)
                     }
                 } else {
                     swung
@@ -264,17 +270,32 @@ class PhysicsEngine(
     }
 
     private fun updateRope(pod: FuelPod, shipPos: Vector2, gravity: Float): FuelPod {
-        var vel = pod.velocity + Vector2(0f, gravity * 0.6f)
-        var pos = pod.position + vel
+        val velAfterGravity = pod.velocity + Vector2(0f, gravity * 0.6f)
+        val integratedPos   = pod.position + velAfterGravity
+        val (pos, vel) = applyRopeConstraint(integratedPos, velAfterGravity, shipPos)
+        return pod.copy(position = pos, velocity = vel)
+    }
+
+    /**
+     * Klemmt eine Position auf maximal [PhysicsConstants.ROPE_LENGTH] vom
+     * Schiff weg und dämpft den nach außen zeigenden Geschwindigkeitsanteil
+     * um 15 %. Wird sowohl vom regulären Rope-Update als auch nach einem
+     * Bounce gegen Terrain aufgerufen — beim Bounce, weil `bouncePod` den
+     * Pod blind aus der Wand drückt und dabei die Seillänge sprengen kann.
+     */
+    private fun applyRopeConstraint(
+        pos: Vector2,
+        vel: Vector2,
+        shipPos: Vector2,
+    ): Pair<Vector2, Vector2> {
         val delta = pos - shipPos
         val dist  = delta.length()
-        if (dist > PhysicsConstants.ROPE_LENGTH) {
-            val dir    = delta.normalized()
-            pos        = shipPos + dir * PhysicsConstants.ROPE_LENGTH
-            val radial = dir.dot(vel)
-            if (radial > 0f) vel = vel - dir * (radial * 0.85f)
-        }
-        return pod.copy(position = pos, velocity = vel)
+        if (dist <= PhysicsConstants.ROPE_LENGTH) return pos to vel
+        val dir       = delta.normalized()
+        val clampedPos = shipPos + dir * PhysicsConstants.ROPE_LENGTH
+        val radial    = dir.dot(vel)
+        val clampedVel = if (radial > 0f) vel - dir * (radial * 0.85f) else vel
+        return clampedPos to clampedVel
     }
 
     private data class CollisionInfo(val normal: Vector2, val closest: Vector2)

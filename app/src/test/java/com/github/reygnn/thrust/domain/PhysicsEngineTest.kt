@@ -231,6 +231,38 @@ class PhysicsEngineTest {
         assertFalse("ship should lose pod",  after.ship.hasPod)
     }
 
+    @Test fun `pod-on-rope stays within ROPE_LENGTH when wall sits between ship and pod`() {
+        // Regression: Wenn die Wand zwischen Schiff und Pod liegt, drückt
+        // bouncePod den Pod weiter weg vom Schiff — ohne nachgelagerte
+        // Seil-Constraint endet der Frame mit dist > ROPE_LENGTH und das
+        // System oszilliert über mehrere Frames in der Wand.
+        // Setup: Schiff (500, 500), Pod (400, 500) genau auf Seillänge,
+        // vertikale Wand bei x=405 (also zwischen Schiff und Pod, Pod-Radius
+        // 10 reicht hinein).
+        val wallBetween = TerrainSegment(Vector2(405f, 490f), Vector2(405f, 510f))
+        val detector = mockk<CollisionDetector>()
+        stubCollisionsButPodTerrain(detector, wallBetween)
+
+        val engine = PhysicsEngine(collisionDetector = detector)
+        var s = baseState().copy(
+            ship    = Ship(position = Vector2(500f, 500f), hasPod = true),
+            fuelPod = FuelPod(
+                position   = Vector2(400f, 500f),
+                velocity   = Vector2(0.5f, 0f),
+                isPickedUp = true,
+            ),
+        )
+        repeat(60) {
+            s = engine.update(s, InputState())
+            if (!s.fuelPod.isPickedUp) return@repeat
+            val dist = (s.fuelPod.position - s.ship.position).length()
+            assertTrue(
+                "rope-attached pod must stay within ROPE_LENGTH (frame=${s.frameCount}, dist=$dist)",
+                dist <= PhysicsConstants.ROPE_LENGTH + 0.01f,
+            )
+        }
+    }
+
     @Test fun `falling pod with low velocity settles after one bounce`() {
         val detector = mockk<CollisionDetector>()
         stubCollisionsButPodTerrain(detector, floorSegmentBelowPod)
